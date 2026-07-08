@@ -84,27 +84,40 @@
             justify-content: space-between;
             align-items: center;
             border-bottom: 1px solid var(--panel-border);
-            padding-bottom: 15px;
+            padding-bottom: 22px;
+            padding-top: 10px;
         }
 
         .logo-container {
             display: flex;
             align-items: center;
-            gap: 10px;
+            gap: 16px;
         }
 
         .minimal-logo-svg {
-            width: 26px;
-            height: 26px;
+            width: 32px;
+            height: 32px;
+            transform: translateY(2px);
         }
 
+        /* Twitch-styled 3D Extruded typography layout */
         h1 {
             margin: 0;
-            font-size: 1.3rem;
+            font-size: 1.5rem;
             font-weight: 700;
-            background: linear-gradient(to right, var(--off-white), var(--accent-color));
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
+            text-transform: lowercase; /* Matches the lowercase aesthetic signature of Twitch */
+            color: var(--off-white);
+            letter-spacing: -0.5px;
+            position: relative;
+            display: inline-block;
+            /* Layered text shadow configurations mapping flat angles down and to the left */
+            text-shadow: 
+                -1px 1px 0px #0b0706,
+                -2px 2px 0px #0b0706,
+                -3px 3px 0px var(--accent-color),
+                -4px 4px 0px var(--accent-color),
+                -5px 5px 0px #0b0706,
+                -6px 6px 0px #0b0706;
         }
 
         .status-wrapper {
@@ -457,7 +470,7 @@
                             <rect width="100" height="100" rx="20" fill="#d4a373"/>
                             <path d="M30 35h40v25H30zM40 68h20M50 60v8" stroke="#1c1412" stroke-width="6" stroke-linecap="round" fill="none"/>
                         </svg>
-                        <h1>Free Stream Party</h1>
+                        <h1>free stream party</h1>
                     </div>
                     <div class="status-wrapper">
                         <div id="status-dot" class="status-dot"></div>
