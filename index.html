@@ -127,6 +127,31 @@
             color: var(--text-muted);
         }
 
+        /* Ambient Mode Viewport Hierarchy Layout Wrapper */
+        .video-wrapper-relative {
+            position: relative;
+            width: 100%;
+            border-radius: 18px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .ambient-glow-backdrop {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: transparent;
+            filter: blur(80px) opacity(0.55);
+            pointer-events: none;
+            z-index: 1;
+            transform: scale(1.05); /* Spills glow gracefully outwards past framing elements */
+            transition: opacity 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+            border-radius: 18px;
+        }
+
         .video-container {
             width: 100%;
             aspect-ratio: 16/9;
@@ -136,12 +161,38 @@
             position: relative;
             border: 1px solid rgba(254, 250, 224, 0.05);
             box-shadow: 0 15px 35px rgba(0,0,0,0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 2; /* Renders layout crisp and overlaying smoothly on top of ambient glow */
         }
 
         video {
             width: 100%;
             height: 100%;
             object-fit: contain;
+        }
+
+        .stream-placeholder-msg {
+            position: absolute;
+            color: var(--text-muted);
+            font-size: 1rem;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 12px;
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        .stream-placeholder-msg svg {
+            width: 48px;
+            height: 48px;
+            opacity: 0.4;
+            stroke: var(--text-muted);
         }
 
         .controls {
@@ -385,7 +436,7 @@
             margin-top: 5px;
         }
 
-        #audio-container { display: none; }
+        #audio-container, #hidden-ambient-canvas { display: none; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
         @media (max-width: 900px) { .app-layout { grid-template-columns: 1fr; } .sidebar { height: 450px; } }
     </style>
@@ -409,9 +460,20 @@
                     </div>
                 </header>
 
-                <div class="video-container">
-                    <div class="badge" id="quality-badge" style="display: none;">Live Feed Connected</div>
-                    <video id="remote-video" autoplay playsinline controls></video>
+                <div class="video-wrapper-relative">
+                    <canvas id="ambient-glow-backdrop" class="ambient-glow-backdrop"></canvas>
+
+                    <div class="video-container" id="video-box-container">
+                        <div class="stream-placeholder-msg" id="stream-fallback-ui">
+                            <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M2 16V4a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2zM6 22h12M10 18v4"></path>
+                            </svg>
+                            <span id="fallback-status-string">Waiting for host to share screen...</span>
+                        </div>
+                        
+                        <div class="badge" id="quality-badge" style="display: none;">Live Feed Connected</div>
+                        <video id="remote-video" autoplay playsinline controls style="display: none;"></video>
+                    </div>
                 </div>
 
                 <div class="controls">
@@ -454,6 +516,7 @@
     </div>
 
     <div id="audio-container"></div>
+    <canvas id="hidden-ambient-canvas" width="64" height="36"></canvas>
 
     <script>
         const streamToggleBtn = document.getElementById('stream-toggle-btn');
@@ -469,6 +532,16 @@
         const viewerListContainer = document.getElementById('viewer-list');
         const partyCountSpan = document.getElementById('party-count');
         const audioContainer = document.getElementById('audio-container');
+
+        const fallbackStatusString = document.getElementById('fallback-status-string');
+        const streamFallbackUi = document.getElementById('stream-fallback-ui');
+
+        // Ambient System variables
+        const ambientBackdropCanvas = document.getElementById('ambient-glow-backdrop');
+        const hiddenCanvas = document.getElementById('hidden-ambient-canvas');
+        const ambientCtx = ambientBackdropCanvas.getContext('2d');
+        const hiddenCtx = hiddenCanvas.getContext('2d');
+        let ambientAnimationId = null;
 
         const profileArea = document.getElementById('profile-area');
         const displayNameLabel = document.getElementById('display-name-label');
@@ -555,7 +628,6 @@
             conn.on('open', () => { 
                 conn.send({ type: 'handshake', name: myRandomName }); 
                 
-                // DIAGNOSTIC FIX: Watch browser RTC peer connection tracking pipeline directly
                 const pc = conn.peerConnection;
                 if (pc) {
                     pc.onconnectionstatechange = () => {
@@ -757,7 +829,16 @@
             call.on('stream', (incomingStream) => {
                 const streamType = call.metadata ? call.metadata.type : 'video';
                 if (streamType === 'video') {
+                    incomingStream.getVideoTracks()[0].onmute = () => handleStreamTerminationUI(false);
+                    incomingStream.getVideoTracks()[0].onunmute = () => {
+                        remoteVideo.style.display = 'block';
+                        streamFallbackUi.style.display = 'none';
+                        qualityBadge.style.display = 'block';
+                    };
+
                     remoteVideo.srcObject = incomingStream;
+                    remoteVideo.style.display = 'block';
+                    streamFallbackUi.style.display = 'none';
                     qualityBadge.style.display = 'block';
                 } else if (streamType === 'voice') {
                     let audioEl = document.getElementById(`audio-${call.peer}`);
@@ -802,6 +883,32 @@
             });
         }
 
+        /* YouTube Ambient Mode Real-time Processing Loop */
+        function initAmbientEngineLoop() {
+            if (remoteVideo.paused || remoteVideo.ended || remoteVideo.style.display === 'none') {
+                ambientCtx.clearRect(0, 0, ambientBackdropCanvas.width, ambientBackdropCanvas.height);
+                return;
+            }
+            
+            // Step 1: Blit fast downscaled pixels onto hidden utility target
+            hiddenCtx.drawImage(remoteVideo, 0, 0, hiddenCanvas.width, hiddenCanvas.height);
+            
+            // Step 2: Extract color clusters and stretch onto visual background presentation layer
+            ambientCtx.drawImage(hiddenCanvas, 0, 0, ambientBackdropCanvas.width, ambientBackdropCanvas.height);
+            
+            // Re-schedule execution frame loop via browser render cycle tracking
+            ambientAnimationId = requestAnimationFrame(initAmbientEngineLoop);
+        }
+
+        // Hook event interfaces safely into playback pipeline states
+        remoteVideo.addEventListener('play', () => {
+            ambientBackdropCanvas.width = remoteVideo.clientWidth / 4;
+            ambientBackdropCanvas.height = remoteVideo.clientHeight / 4;
+            initAmbientEngineLoop();
+        });
+        remoteVideo.addEventListener('pause', () => cancelAnimationFrame(ambientAnimationId));
+        remoteVideo.addEventListener('ended', () => cancelAnimationFrame(ambientAnimationId));
+
         streamToggleBtn.addEventListener('click', async () => {
             if (!isStreaming) {
                 try {
@@ -842,6 +949,8 @@
                     }
 
                     remoteVideo.srcObject = localScreenStream;
+                    remoteVideo.style.display = 'block';
+                    streamFallbackUi.style.display = 'none';
                     remoteVideo.muted = true;
                     isStreaming = true;
                     streamToggleBtn.innerText = "Stop Sharing";
@@ -855,12 +964,12 @@
                         optimizeConnection(call.peerConnection);
                     });
 
-                    localScreenStream.getVideoTracks()[0].onended = () => resetStreamViewport();
+                    localScreenStream.getVideoTracks()[0].onended = () => handleStreamTerminationUI(true);
                 } catch (err) { 
                     console.error(err); 
                     statusText.innerText = "Stream Exception: " + err.message;
                 }
-            } else { resetStreamViewport(); }
+            } else { handleStreamTerminationUI(true); }
         });
 
         swapStreamBtn.addEventListener('click', async () => {
@@ -885,20 +994,37 @@
 
                 localScreenStream.getVideoTracks()[0].stop();
                 localScreenStream = newStream;
-                localScreenStream.getVideoTracks()[0].onended = () => resetStreamViewport();
+                localScreenStream.getVideoTracks()[0].onended = () => handleStreamTerminationUI(true);
             } catch (err) { console.error(err); }
         });
 
-        function resetStreamViewport() {
+        function handleStreamTerminationUI(isLocalHostAction = false) {
             if (document.pictureInPictureElement) document.exitPictureInPicture().catch(console.error);
-            if (localScreenStream) localScreenStream.getTracks().forEach(t => t.stop());
-            activeCallsArray.forEach(call => call.close());
-            activeCallsArray = [];
+            
+            // Shut off frame tracking array calculation
+            cancelAnimationFrame(ambientAnimationId);
+            ambientCtx.clearRect(0, 0, ambientBackdropCanvas.width, ambientBackdropCanvas.height);
+
+            if (isLocalHostAction && localScreenStream) {
+                localScreenStream.getTracks().forEach(t => t.stop());
+                activeCallsArray.forEach(call => call.close());
+                activeCallsArray = [];
+            }
+            
             remoteVideo.srcObject = null;
-            isStreaming = false;
-            streamToggleBtn.innerText = "Start Sharing";
-            streamToggleBtn.className = "btn-start";
-            swapStreamBtn.style.display = 'none';
+            remoteVideo.style.display = 'none';
+            qualityBadge.style.display = 'none';
+            streamFallbackUi.style.display = 'flex';
+
+            if (isLocalHostAction) {
+                isStreaming = false;
+                streamToggleBtn.innerText = "Start Sharing";
+                streamToggleBtn.className = "btn-start";
+                swapStreamBtn.style.display = 'none';
+                fallbackStatusString.innerText = "Waiting for host to share screen...";
+            } else {
+                fallbackStatusString.innerText = "Host has stopped streaming.";
+            }
         }
 
         pipBtn.addEventListener('click', async () => {
@@ -937,7 +1063,6 @@
         }
 
         function syncLobbyList(newList) {
-            // DIAGNOSTIC CHECK: Filter out ghost IDs that don't match active Peer connection instances downstream
             if (!isHost) {
                 lobbyMembersList = newList.map(m => m.id === peer.id ? { id: m.id, name: myRandomName + " (You)", isSpeaking: m.isSpeaking } : m);
             } else {
@@ -947,7 +1072,6 @@
         }
 
         function broadcastLobbyState() {
-            // Host filters out non-responsive connection state objects before broadcasting to clean list arrays
             lobbyMembersList = lobbyMembersList.filter(m => m.id === peer.id || connectedPeersMap[m.id]);
             Object.values(connectedPeersMap).forEach(p => {
                 if (p.connection.open) p.connection.send({ type: 'lobby-update', list: lobbyMembersList });
