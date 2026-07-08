@@ -213,7 +213,6 @@
             color: #1c1412;
         }
 
-        /* Animated Speaking Audio Indicator Icon */
         .voice-indicator {
             display: flex;
             align-items: flex-end;
@@ -339,13 +338,24 @@
         const targetRoomId = urlParams.get('room');
         const isHost = !targetRoomId;
 
+        // FIX: Enforce Ice Config to cross NAT firewalls between different global routers
+        const peerConfig = {
+            config: {
+                iceServers: [
+                    { urls: 'stun:stun.l.google.com:19302' },
+                    { urls: 'stun:stun1.l.google.com:19302' },
+                    { urls: 'stun:stun2.l.google.com:19302' }
+                ]
+            }
+        };
+
         if (isHost) {
             const generatedRoomId = 'party-' + Math.random().toString(36).substring(2, 9);
-            peer = new Peer(generatedRoomId);
+            peer = new Peer(generatedRoomId, peerConfig);
             statusText.innerText = "Opening lounge room...";
             addToLobbyDisplay(peer.id, myRandomName, true);
         } else {
-            peer = new Peer();
+            peer = new Peer(peerConfig);
             streamToggleBtn.style.display = 'none';
             qualitySelect.style.display = 'none';
             statusText.innerText = "Entering lobby gates...";
@@ -376,7 +386,14 @@
         peer.on('connection', (conn) => { handleDataConnection(conn); });
 
         function handleDataConnection(conn) {
-            conn.on('open', () => { conn.send({ type: 'handshake', name: myRandomName }); });
+            // Track when the connection cuts out or gets terminated natively
+            conn.on('close', () => { handlePeerDisconnection(conn.peer); });
+            conn.on('error', () => { handlePeerDisconnection(conn.peer); });
+
+            conn.on('open', () => { 
+                conn.send({ type: 'handshake', name: myRandomName }); 
+            });
+
             conn.on('data', (data) => {
                 if (data.type === 'handshake') {
                     connectedPeersMap[conn.peer] = { name: data.name, connection: conn };
@@ -393,17 +410,17 @@
                 if (data.type === 'lobby-update') syncLobbyList(data.list);
                 if (data.type === 'speaking-state') updateVoiceIndicator(data.peerId, data.isSpeaking);
             });
-            conn.on('close', () => {
-                removeFromLobbyDisplay(conn.peer);
-                if (isHost) broadcastLobbyState();
-            });
         }
 
-        // Voice Chat Activation & Audio Volume Analyzer Engine
+        function handlePeerDisconnection(peerId) {
+            delete connectedPeersMap[peerId];
+            removeFromLobbyDisplay(peerId);
+            if (isHost) broadcastLobbyState();
+        }
+
         micToggleBtn.addEventListener('click', async () => {
             if (!isMicOn) {
                 try {
-                    // Lock down custom audio constraints designed to extract clean, unclipped desktop inputs
                     localMicStream = await navigator.mediaDevices.getUserMedia({ 
                         audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }, 
                         video: false 
@@ -412,7 +429,6 @@
                     micToggleBtn.innerText = "Mic: Talk Active";
                     micToggleBtn.className = "btn-mic-on";
 
-                    // Trigger Voice Analyzer for current local user layout
                     setupLocalVoiceAnalyzer(localMicStream);
 
                     Object.keys(connectedPeersMap).forEach(peerId => {
@@ -448,7 +464,6 @@
                 for (let i = 0; i < bufferLength; i++) total += dataArray[i];
                 let average = total / bufferLength;
                 
-                // Sensitivity barrier threshold (volume spike)
                 let isSpeaking = average > 12; 
                 if (isSpeaking !== wasSpeaking) {
                     updateVoiceIndicator(peer.id, isSpeaking);
@@ -487,7 +502,6 @@
             optimizeConnection(call.peerConnection);
         });
 
-        // Forced Network Bitrate Throttle Limits (Fixes Lagoon Stutters completely)
         function optimizeConnection(peerConnection) {
             if (!peerConnection) return;
             peerConnection.addEventListener('track', () => {
@@ -499,12 +513,11 @@
                         
                         parameters.encodings[0].degradationPreference = 'maintain-framerate';
                         
-                        // Enforce specific strict max bitrates to prevent network choke
                         const selectedQuality = qualitySelect.value;
                         if (selectedQuality === '720p') {
-                            parameters.encodings[0].maxBitrate = 2200000; // Hard cap at 2.2 Mbps (perfect smooth 720p)
+                            parameters.encodings[0].maxBitrate = 2200000; 
                         } else {
-                            parameters.encodings[0].maxBitrate = 4500000; // Hard cap at 4.5 Mbps (perfect compressed 1080p)
+                            parameters.encodings[0].maxBitrate = 4500000; 
                         }
                         
                         sender.setParameters(parameters).catch(console.error);
@@ -513,7 +526,6 @@
             });
         }
 
-        // Handle Active Window Streams
         streamToggleBtn.addEventListener('click', async () => {
             if (!isStreaming) {
                 try {
@@ -522,7 +534,6 @@
                         ? { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 60, max: 60 } }
                         : { width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 60, max: 60 } };
                     
-                    // CRITICAL FIX: Explicit configurations to pull System Audio natively
                     localScreenStream = await navigator.mediaDevices.getDisplayMedia({
                         video: { ...vConstraints, displaySurface: "monitor" },
                         audio: {
@@ -597,7 +608,7 @@
             } catch (err) { console.error(err); }
         });
 
-        // Display Nodes Layout Handlers
+        // UI Array Logic Fixes: Filtering correctly ensures users disappear cleanly on close
         function addToLobbyDisplay(id, name, local = false) {
             if (lobbyMembersList.some(m => m.id === id)) return;
             lobbyMembersList.push({ id, name: name + (local ? " (You)" : ""), isSpeaking: false });
@@ -612,7 +623,8 @@
         }
 
         function syncLobbyList(newList) {
-            lobbyMembersList = newList.map(m => m.id === peer.id ? { id: m.id, name: m.name + " (You)", isSpeaking: m.isSpeaking } : m);
+            // Clean out duplicates and preserve the clean local naming tag structure
+            lobbyMembersList = newList.map(m => m.id === peer.id ? { id: m.id, name: myRandomName + " (You)", isSpeaking: m.isSpeaking } : m);
             renderLobbyUI();
         }
 
