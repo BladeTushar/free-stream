@@ -4,6 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Free Stream Party - High Performance</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%23d4a373'/><path d='M30 35h40v25H30zM40 68h20M50 60v8' stroke='%231c1412' stroke-width='6' stroke-linecap='round' fill='none'/></svg>">
     <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
     <style>
@@ -26,7 +29,8 @@
             padding: 0;
             background: var(--bg-gradient);
             color: var(--text-main);
-            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            /* Font updated to JetBrains Mono globally */
+            font-family: 'JetBrains Mono', monospace;
             display: flex;
             justify-content: center;
             align-items: center;
@@ -97,7 +101,7 @@
 
         h1 {
             margin: 0;
-            font-size: 1.4rem;
+            font-size: 1.3rem;
             font-weight: 700;
             background: linear-gradient(to right, var(--off-white), var(--accent-color));
             -webkit-background-clip: text;
@@ -123,11 +127,10 @@
         }
 
         .status-text {
-            font-size: 0.8rem;
+            font-size: 0.75rem;
             color: var(--text-muted);
         }
 
-        /* Ambient Mode Viewport Hierarchy Layout Wrapper */
         .video-wrapper-relative {
             position: relative;
             width: 100%;
@@ -147,7 +150,7 @@
             filter: blur(80px) opacity(0.55);
             pointer-events: none;
             z-index: 1;
-            transform: scale(1.05); /* Spills glow gracefully outwards past framing elements */
+            transform: scale(1.05);
             transition: opacity 0.5s cubic-bezier(0.4, 0, 0.2, 1);
             border-radius: 18px;
         }
@@ -164,7 +167,7 @@
             display: flex;
             justify-content: center;
             align-items: center;
-            z-index: 2; /* Renders layout crisp and overlaying smoothly on top of ambient glow */
+            z-index: 2;
         }
 
         video {
@@ -176,9 +179,9 @@
         .stream-placeholder-msg {
             position: absolute;
             color: var(--text-muted);
-            font-size: 1rem;
-            font-weight: 600;
-            letter-spacing: 0.5px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            letter-spacing: 0.3px;
             text-align: center;
             display: flex;
             flex-direction: column;
@@ -189,8 +192,8 @@
         }
 
         .stream-placeholder-msg svg {
-            width: 48px;
-            height: 48px;
+            width: 44px;
+            height: 44px;
             opacity: 0.4;
             stroke: var(--text-muted);
         }
@@ -203,12 +206,13 @@
         }
 
         button, select, input[type="text"] {
+            font-family: 'JetBrains Mono', monospace;
             background: rgba(254, 250, 224, 0.06);
             color: var(--text-main);
             border: 1px solid var(--panel-border);
-            padding: 12px 22px;
-            font-size: 0.85rem;
-            font-weight: 600;
+            padding: 12px 20px;
+            font-size: 0.8rem;
+            font-weight: 500;
             border-radius: 14px;
             cursor: pointer;
             transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
@@ -243,47 +247,49 @@
             transform: translateY(-1px);
         }
 
-        .btn-start { background: var(--accent-color) !important; color: #1c1412 !important; box-shadow: 0 4px 14px var(--accent-glow); }
-        .btn-stop { background: var(--danger-color) !important; color: #fff !important; box-shadow: 0 4px 14px var(--danger-glow); }
-        .btn-mic-on { background: var(--success-color) !important; color: #1c1412 !important; }
+        .btn-start { background: var(--accent-color) !important; color: #1c1412 !important; box-shadow: 0 4px 14px var(--accent-glow); font-weight: 700; }
+        .btn-stop { background: var(--danger-color) !important; color: #fff !important; box-shadow: 0 4px 14px var(--danger-glow); font-weight: 700; }
+        .btn-mic-on { background: var(--success-color) !important; color: #1c1412 !important; font-weight: 700; }
         .btn-mic-off { background: rgba(224, 122, 95, 0.15) !important; color: var(--danger-color) !important; }
 
         .profile-section {
             display: flex;
             align-items: center;
+            justify-content: space-between;
             gap: 8px;
             border-bottom: 1px solid var(--panel-border);
             padding-bottom: 12px;
         }
 
         .profile-section span {
-            font-size: 0.9rem;
+            font-size: 0.8rem;
             font-weight: 700;
             color: var(--accent-color);
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
-            max-width: 180px;
+            max-width: 190px;
         }
 
         .btn-edit-name {
-            padding: 4px 10px;
-            font-size: 0.75rem;
+            padding: 5px 10px;
+            font-size: 0.7rem;
             border-radius: 8px;
         }
 
         .name-edit-input {
             width: 100%;
             padding: 6px 12px !important;
-            font-size: 0.85rem !important;
+            font-size: 0.8rem !important;
             border-radius: 10px !important;
         }
 
         .sidebar h2 {
             margin: 0;
-            font-size: 1rem;
+            font-size: 0.9rem;
             color: var(--text-main);
             padding-top: 4px;
+            font-weight: 700;
         }
 
         .viewer-list {
@@ -291,7 +297,7 @@
             flex-direction: column;
             gap: 8px;
             overflow-y: auto;
-            max-height: 180px;
+            max-height: 160px;
             min-height: 100px;
             border-bottom: 1px solid var(--panel-border);
             padding-bottom: 12px;
@@ -305,7 +311,7 @@
             background: rgba(213, 189, 175, 0.04);
             border: 1px solid rgba(213, 189, 175, 0.03);
             border-radius: 12px;
-            font-size: 0.85rem;
+            font-size: 0.75rem;
         }
 
         .viewer-info {
@@ -315,14 +321,14 @@
         }
 
         .viewer-avatar {
-            width: 24px;
-            height: 24px;
+            width: 22px;
+            height: 22px;
             background: var(--accent-color);
             border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 0.75rem;
+            font-size: 0.7rem;
             font-weight: 700;
             color: #1c1412;
         }
@@ -375,9 +381,9 @@
             border: 1px solid rgba(254, 250, 224, 0.03);
             border-radius: 12px;
             padding: 8px 12px;
-            font-size: 0.85rem;
+            font-size: 0.75rem;
             word-break: break-word;
-            line-height: 1.35;
+            line-height: 1.4;
         }
 
         .chat-bubble.system-msg {
@@ -392,7 +398,7 @@
             font-weight: 700;
             color: var(--accent-color);
             margin-bottom: 2px;
-            font-size: 0.78rem;
+            font-size: 0.7rem;
         }
 
         .chat-input-row {
@@ -403,7 +409,7 @@
         .chat-input-row input {
             flex-grow: 1;
             padding: 10px 14px !important;
-            font-size: 0.85rem !important;
+            font-size: 0.75rem !important;
             border-radius: 12px !important;
         }
 
@@ -421,7 +427,7 @@
             background: rgba(129, 178, 154, 0.2);
             padding: 6px 12px;
             border-radius: 8px;
-            font-size: 0.75rem;
+            font-size: 0.7rem;
             font-weight: 600;
             color: #a8dadc;
             z-index: 10;
@@ -429,7 +435,7 @@
 
         .chromium-footer-note {
             text-align: center;
-            font-size: 0.8rem;
+            font-size: 0.7rem;
             color: var(--text-muted);
             opacity: 0.65;
             letter-spacing: 0.3px;
@@ -536,7 +542,6 @@
         const fallbackStatusString = document.getElementById('fallback-status-string');
         const streamFallbackUi = document.getElementById('stream-fallback-ui');
 
-        // Ambient System variables
         const ambientBackdropCanvas = document.getElementById('ambient-glow-backdrop');
         const hiddenCanvas = document.getElementById('hidden-ambient-canvas');
         const ambientCtx = ambientBackdropCanvas.getContext('2d');
@@ -665,6 +670,9 @@
                 }
                 if (data.type === 'chat-msg') {
                     appendChatBubble(data.senderName, data.text);
+                }
+                if (data.type === 'stream-stopped') {
+                    handleStreamTerminationUI(false);
                 }
                 if (data.type === 'lobby-update') syncLobbyList(data.list);
                 if (data.type === 'speaking-state') updateVoiceIndicator(data.peerId, data.isSpeaking);
@@ -883,24 +891,16 @@
             });
         }
 
-        /* YouTube Ambient Mode Real-time Processing Loop */
         function initAmbientEngineLoop() {
             if (remoteVideo.paused || remoteVideo.ended || remoteVideo.style.display === 'none') {
                 ambientCtx.clearRect(0, 0, ambientBackdropCanvas.width, ambientBackdropCanvas.height);
                 return;
             }
-            
-            // Step 1: Blit fast downscaled pixels onto hidden utility target
             hiddenCtx.drawImage(remoteVideo, 0, 0, hiddenCanvas.width, hiddenCanvas.height);
-            
-            // Step 2: Extract color clusters and stretch onto visual background presentation layer
             ambientCtx.drawImage(hiddenCanvas, 0, 0, ambientBackdropCanvas.width, ambientBackdropCanvas.height);
-            
-            // Re-schedule execution frame loop via browser render cycle tracking
             ambientAnimationId = requestAnimationFrame(initAmbientEngineLoop);
         }
 
-        // Hook event interfaces safely into playback pipeline states
         remoteVideo.addEventListener('play', () => {
             ambientBackdropCanvas.width = remoteVideo.clientWidth / 4;
             ambientBackdropCanvas.height = remoteVideo.clientHeight / 4;
@@ -1001,12 +1001,15 @@
         function handleStreamTerminationUI(isLocalHostAction = false) {
             if (document.pictureInPictureElement) document.exitPictureInPicture().catch(console.error);
             
-            // Shut off frame tracking array calculation
             cancelAnimationFrame(ambientAnimationId);
             ambientCtx.clearRect(0, 0, ambientBackdropCanvas.width, ambientBackdropCanvas.height);
 
-            if (isLocalHostAction && localScreenStream) {
-                localScreenStream.getTracks().forEach(t => t.stop());
+            if (isLocalHostAction) {
+                Object.values(connectedPeersMap).forEach(p => {
+                    if (p.connection.open) p.connection.send({ type: 'stream-stopped' });
+                });
+
+                if (localScreenStream) localScreenStream.getTracks().forEach(t => t.stop());
                 activeCallsArray.forEach(call => call.close());
                 activeCallsArray = [];
             }
@@ -1026,14 +1029,6 @@
                 fallbackStatusString.innerText = "Host has stopped streaming.";
             }
         }
-
-        pipBtn.addEventListener('click', async () => {
-            try {
-                if (!remoteVideo.srcObject) return;
-                if (document.pictureInPictureElement) await document.exitPictureInPicture();
-                else await remoteVideo.requestPictureInPicture();
-            } catch (err) { console.error(err); }
-        });
 
         function addToLobbyDisplay(id, name, local = false) {
             const existingIndex = lobbyMembersList.findIndex(m => m.id === id);
