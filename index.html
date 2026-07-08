@@ -375,6 +375,7 @@
             flex-grow: 1;
             overflow: hidden;
             gap: 10px;
+            position: relative;
         }
 
         .chat-messages {
@@ -384,6 +385,7 @@
             flex-direction: column;
             gap: 8px;
             padding-right: 4px;
+            padding-bottom: 20px;
         }
 
         .chat-bubble {
@@ -411,9 +413,23 @@
             font-size: 0.7rem;
         }
 
+        /* Real-time typing status layout text block */
+        .typing-status-indicator {
+            position: absolute;
+            bottom: 58px;
+            left: 4px;
+            font-size: 0.68rem;
+            color: var(--text-muted);
+            font-style: italic;
+            display: none;
+            animation: pulseFade 1.5s infinite alternate;
+            z-index: 5;
+        }
+
         .chat-input-row {
             display: flex;
             gap: 8px;
+            z-index: 6;
         }
 
         .chat-input-row input {
@@ -429,6 +445,7 @@
         }
 
         @keyframes bounce { from { height: 4px; } to { height: 15px; } }
+        @keyframes pulseFade { from { opacity: 0.5; } to { opacity: 1; } }
 
         .badge {
             position: absolute;
@@ -518,6 +535,7 @@
                     <div class="chat-messages" id="chat-messages-box">
                         <div class="chat-bubble system-msg">Welcome to the lounge room text channel!</div>
                     </div>
+                    <div class="typing-status-indicator" id="typing-prompt-box">Someone is typing...</div>
                     <div class="chat-input-row">
                         <input type="text" id="chat-input-field" placeholder="Type a message..." autocomplete="off">
                         <button id="chat-send-btn" class="btn-start">Send</button>
@@ -564,6 +582,7 @@
         const chatMessagesBox = document.getElementById('chat-messages-box');
         const chatInputField = document.getElementById('chat-input-field');
         const chatSendBtn = document.getElementById('chat-send-btn');
+        const typingPromptBox = document.getElementById('typing-prompt-box');
 
         let peer = null;
         let localScreenStream = null;
@@ -574,9 +593,12 @@
         let connectedPeersMap = {}; 
         let activeCallsArray = []; 
         let lobbyMembersList = [];
+        let typingUsersTracker = {};
 
         let audioContext = null;
         let localAnalyser = null;
+        let typingTimeoutId = null;
+        let isCurrentlyTypingState = false;
 
         const adjectives = ["Mocha", "Espresso", "Hazelnut", "Creamy", "Toasty", "Roasted", "Chestnut", "Velvet", "Golden"];
         const nouns = ["Barista", "Otter", "Fox", "Panda", "Sloth", "Beaver", "Owl", "Falcon", "Koala"];
@@ -605,6 +627,14 @@
             peer = new Peer(generatedRoomId, peerConfig);
             statusText.innerText = "Opening lounge room...";
             addToLobbyDisplay(peer.id, myRandomName, true);
+            
+            // STABILITY UPGRADE: Host runs network connectivity heartbeats
+            setInterval(() => {
+                if (!isStreaming) return;
+                Object.values(connectedPeersMap).forEach(p => {
+                    if (p.connection.open) p.connection.send({ type: 'ping-pulse' });
+                });
+            }, 4000);
         } else {
             peer = new Peer(peerConfig);
             streamToggleBtn.style.display = 'none';
@@ -684,6 +714,18 @@
                 if (data.type === 'stream-stopped') {
                     handleStreamTerminationUI(false);
                 }
+                if (data.type === 'typing-start') {
+                    typingUsersTracker[conn.peer] = data.senderName;
+                    renderTypingIndicatorLabel();
+                }
+                if (data.type === 'typing-stop') {
+                    delete typingUsersTracker[conn.peer];
+                    renderTypingIndicatorLabel();
+                }
+                if (data.type === 'ping-pulse') {
+                    // Responding to ping pulses keeps connection sockets active
+                    if(conn.open) conn.send({ type: 'pong-ack' });
+                }
                 if (data.type === 'lobby-update') syncLobbyList(data.list);
                 if (data.type === 'speaking-state') updateVoiceIndicator(data.peerId, data.isSpeaking);
             });
@@ -692,18 +734,25 @@
         function handlePeerDisconnection(peerId) {
             if (!connectedPeersMap[peerId] && !lobbyMembersList.some(m => m.id === peerId)) return;
             delete connectedPeersMap[peerId];
+            delete typingUsersTracker[peerId];
+            renderTypingIndicatorLabel();
             removeFromLobbyDisplay(peerId);
             
-            // CRITICAL FIX: If a watcher loses connection to the host peer specifically, clean layout instantly
             if (!isHost && peerId === targetRoomId) {
                 handleStreamTerminationUI(false);
-                fallbackStatusString.innerText = "Host disconnected or closed the room.";
+                fallbackStatusString.innerHTML = `
+                    <div style="display:flex; flex-direction:column; gap:12px; align-items:center;">
+                        <span>Host disconnected or stream dropped.</span>
+                        <button onclick="window.location.reload();" class="btn-start" style="padding:8px 16px; font-size:0.75rem; margin-top:5px;">
+                            🔄 Click to Reconnect
+                        </button>
+                    </div>
+                `;
             }
 
             if (isHost) broadcastLobbyState();
         }
 
-        // Host Tab Closure Backup Interceptor
         window.addEventListener('beforeunload', () => {
             if (isHost && isStreaming) {
                 Object.values(connectedPeersMap).forEach(p => {
@@ -711,6 +760,39 @@
                 });
             }
         });
+
+        // Typing Action Event Hooks
+        chatInputField.addEventListener('input', () => {
+            if (!isCurrentlyTypingState) {
+                isCurrentlyTypingState = true;
+                sendTypingSignalBroadcast('typing-start');
+            }
+            
+            clearTimeout(typingTimeoutId);
+            typingTimeoutId = setTimeout(() => {
+                isCurrentlyTypingState = false;
+                sendTypingSignalBroadcast('typing-stop');
+            }, 1800);
+        });
+
+        function sendTypingSignalBroadcast(typeString) {
+            Object.values(connectedPeersMap).forEach(p => {
+                if (p.connection.open) p.connection.send({ type: typeString, senderName: myRandomName });
+            });
+        }
+
+        function renderTypingIndicatorLabel() {
+            const users = Object.values(typingUsersTracker);
+            if (users.length === 0) {
+                typingPromptBox.style.display = 'none';
+            } else if (users.length === 1) {
+                typingPromptBox.innerText = `${users[0]} is typing...`;
+                typingPromptBox.style.display = 'block';
+            } else {
+                typingPromptBox.innerText = `Multiple people typing...`;
+                typingPromptBox.style.display = 'block';
+            }
+        }
 
         editNameBtn.addEventListener('click', () => {
             if (editNameBtn.innerText === "Edit") {
@@ -759,6 +841,10 @@
         function sendChatMessage() {
             const rawText = chatInputField.value.trim();
             if (rawText.length === 0) return;
+
+            clearTimeout(typingTimeoutId);
+            isCurrentlyTypingState = false;
+            sendTypingSignalBroadcast('typing-stop');
 
             appendChatBubble(myRandomName, rawText);
             chatInputField.value = "";
