@@ -4,9 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Free Stream Party - High Performance</title>
+    <!-- Importing JetBrains Mono Font -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    <!-- Minimal Tab Logo (Favicon) -->
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%23d4a373'/><path d='M30 35h40v25H30zM40 68h20M50 60v8' stroke='%231c1412' stroke-width='6' stroke-linecap='round' fill='none'/></svg>">
     <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
     <style>
@@ -611,7 +613,6 @@
         const targetRoomId = urlParams.get('room');
         const isHost = !targetRoomId;
 
-        // SPEED UPGRADE: Explicit Trickle ICE and forced IPv4 optimization properties
         const peerConfig = {
             config: {
                 iceServers: [
@@ -619,7 +620,7 @@
                     { urls: 'stun:stun1.l.google.com:19302' }
                 ],
                 iceTransportPolicy: 'all',
-                iceCandidatePoolSize: 2 // Pre-gathers routing pipes before call is initiated to maximize connection speeds
+                iceCandidatePoolSize: 2 
             }
         };
 
@@ -650,7 +651,6 @@
                 setupInviteLink(id);
             } else {
                 statusText.innerText = "Syncing network layers...";
-                // SPEED UPGRADE: Connect immediately with trickle tokens
                 const dataConn = peer.connect(targetRoomId, { reliable: true });
                 handleDataConnection(dataConn);
             }
@@ -717,8 +717,8 @@
             conn.on('data', (data) => {
                 if (data.type === 'handshake') {
                     connectedPeersMap[conn.peer] = { name: data.name, connection: conn };
-                    addToLobbyDisplay(conn.peer, data.name);
                     if (isHost) {
+                        addToLobbyDisplay(conn.peer, data.name);
                         broadcastLobbyState();
                         if (localScreenStream && isStreaming) {
                             triggerMediaCallWithICE(conn.peer);
@@ -729,8 +729,10 @@
                     if (connectedPeersMap[conn.peer]) {
                         connectedPeersMap[conn.peer].name = data.newName;
                     }
-                    updateLobbyMemberName(conn.peer, data.newName);
-                    if (isHost) broadcastLobbyState();
+                    if (isHost) {
+                        updateLobbyMemberName(conn.peer, data.newName);
+                        broadcastLobbyState();
+                    }
                 }
                 if (data.type === 'chat-msg') {
                     appendChatBubble(data.senderName, data.text);
@@ -750,7 +752,10 @@
                 if (data.type === 'ping-pulse') {
                     if(conn.open) conn.send({ type: 'pong-ack' });
                 }
-                if (data.type === 'lobby-update') syncLobbyList(data.list);
+                if (data.type === 'lobby-update') {
+                    // CACHING FIX: Watchers blindly accept host master list state
+                    syncLobbyList(data.list);
+                }
                 if (data.type === 'speaking-state') updateVoiceIndicator(data.peerId, data.isSpeaking);
             });
         }
@@ -786,11 +791,9 @@
         }
 
         function handlePeerDisconnection(peerId) {
-            if (!connectedPeersMap[peerId] && !lobbyMembersList.some(m => m.id === peerId)) return;
             delete connectedPeersMap[peerId];
             delete typingUsersTracker[peerId];
             renderTypingIndicatorLabel();
-            removeFromLobbyDisplay(peerId);
             
             if (!isHost && peerId === targetRoomId) {
                 handleStreamTerminationUI(false);
@@ -804,7 +807,10 @@
                 `;
             }
 
-            if (isHost) broadcastLobbyState();
+            if (isHost) {
+                removeFromLobbyDisplay(peerId);
+                broadcastLobbyState(); // Immediately forces out old list footprints from watchers
+            }
         }
 
         window.addEventListener('beforeunload', () => {
@@ -870,18 +876,14 @@
                         <button id="edit-name-btn" class="btn-edit-name">Edit</button>
                     `;
                     displayNameLabel.innerText = myRandomName + " (You)";
-                    updateLobbyMemberName(peer.id, myRandomName);
                     
-                    Object.values(connectedPeersMap).forEach(p => {
-                        if (p.connection.open) p.connection.send({ type: 'name-update', newName: myRandomName });
-                    });
-                    if (!isHost) {
-                        const hostPeer = Object.values(connectedPeersMap)[0];
-                        if (hostPeer && hostPeer.connection.open) {
-                            hostPeer.connection.send({ type: 'name-update', newName: myRandomName });
-                        }
-                    } else {
+                    if (isHost) {
+                        updateLobbyMemberName(peer.id, myRandomName);
                         broadcastLobbyState();
+                    } else {
+                        Object.values(connectedPeersMap).forEach(p => {
+                            if (p.connection.open) p.connection.send({ type: 'name-update', newName: myRandomName });
+                        });
                     }
                     document.getElementById('edit-name-btn').addEventListener('click', () => editNameBtn.click());
                 };
@@ -1194,7 +1196,9 @@
             }
         }
 
+        // MASTER STATE CONTROL (HOST ONLY)
         function addToLobbyDisplay(id, name) {
+            if (!isHost) return;
             const existingIndex = lobbyMembersList.findIndex(m => m.id === id);
             const entryData = { id, name: name, isSpeaking: false };
             
@@ -1207,6 +1211,7 @@
         }
 
         function updateLobbyMemberName(id, newName) {
+            if (!isHost) return;
             const member = lobbyMembersList.find(m => m.id === id);
             if (member) {
                 member.name = newName;
@@ -1215,26 +1220,28 @@
         }
 
         function removeFromLobbyDisplay(id) {
+            if (!isHost) return;
             lobbyMembersList = lobbyMembersList.filter(m => m.id !== id);
             const el = document.getElementById(`audio-${id}`);
             if (el) el.remove();
             renderLobbyUI();
         }
 
+        // WATCHER CACHE SYNC LAYER
         function syncLobbyList(newList) {
-            if (!isHost) {
-                lobbyMembersList = newList.map(m => m.id === peer.id ? { id: m.id, name: myRandomName, isSpeaking: m.isSpeaking } : m);
-            } else {
-                lobbyMembersList = lobbyMembersList.filter(m => m.id === peer.id || connectedPeersMap[m.id]);
-            }
+            // Hard overwrite to completely clear old ghosts and sync correct edited names
+            lobbyMembersList = newList.map(m => m.id === peer.id ? { id: m.id, name: myRandomName, isSpeaking: m.isSpeaking } : m);
             renderLobbyUI();
         }
 
         function broadcastLobbyState() {
+            if (!isHost) return;
+            // Clean master audit filtering before dispatching
             lobbyMembersList = lobbyMembersList.filter(m => m.id === peer.id || connectedPeersMap[m.id]);
             Object.values(connectedPeersMap).forEach(p => {
                 if (p.connection.open) p.connection.send({ type: 'lobby-update', list: lobbyMembersList });
             });
+            renderLobbyUI();
         }
 
         function updateVoiceIndicator(peerId, isSpeaking) {
