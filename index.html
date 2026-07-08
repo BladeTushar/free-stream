@@ -157,13 +157,6 @@
             background-size: 14px;
         }
 
-        /* FIXED: Styled the drop-down menu option block container explicitly */
-        select option {
-            background-color: #2b1e1b;
-            color: var(--text-main);
-            padding: 10px;
-        }
-
         button:hover, select:hover { 
             background: rgba(254, 250, 224, 0.12);
             transform: translateY(-1px);
@@ -220,6 +213,7 @@
             color: #1c1412;
         }
 
+        /* Animated Speaking Audio Indicator Icon */
         .voice-indicator {
             display: flex;
             align-items: flex-end;
@@ -292,7 +286,7 @@
                     <option value="720p">720p (Recommended / No Lag)</option>
                     <option value="1080p">1080p (Requires Fast Upload)</option>
                 </select>
-                <button id="swap-stream-btn" style="display: none;">Change Window</button>
+                <button id="swap-stream-btn" style="display: none;">换 Window</button>
                 <button id="mic-toggle-btn" class="btn-mic-off">Mic: Muted</button>
                 <button id="pip-btn" style="display: none;">🔲 Miniplayer</button>
                 <button id="copy-link-btn" style="display: none;">Copy Invite Link</button>
@@ -405,9 +399,11 @@
             });
         }
 
+        // Voice Chat Activation & Audio Volume Analyzer Engine
         micToggleBtn.addEventListener('click', async () => {
             if (!isMicOn) {
                 try {
+                    // Lock down custom audio constraints designed to extract clean, unclipped desktop inputs
                     localMicStream = await navigator.mediaDevices.getUserMedia({ 
                         audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }, 
                         video: false 
@@ -416,6 +412,7 @@
                     micToggleBtn.innerText = "Mic: Talk Active";
                     micToggleBtn.className = "btn-mic-on";
 
+                    // Trigger Voice Analyzer for current local user layout
                     setupLocalVoiceAnalyzer(localMicStream);
 
                     Object.keys(connectedPeersMap).forEach(peerId => {
@@ -451,6 +448,7 @@
                 for (let i = 0; i < bufferLength; i++) total += dataArray[i];
                 let average = total / bufferLength;
                 
+                // Sensitivity barrier threshold (volume spike)
                 let isSpeaking = average > 12; 
                 if (isSpeaking !== wasSpeaking) {
                     updateVoiceIndicator(peer.id, isSpeaking);
@@ -489,6 +487,7 @@
             optimizeConnection(call.peerConnection);
         });
 
+        // Forced Network Bitrate Throttle Limits (Fixes Lagoon Stutters completely)
         function optimizeConnection(peerConnection) {
             if (!peerConnection) return;
             peerConnection.addEventListener('track', () => {
@@ -500,11 +499,12 @@
                         
                         parameters.encodings[0].degradationPreference = 'maintain-framerate';
                         
+                        // Enforce specific strict max bitrates to prevent network choke
                         const selectedQuality = qualitySelect.value;
                         if (selectedQuality === '720p') {
-                            parameters.encodings[0].maxBitrate = 2200000; 
+                            parameters.encodings[0].maxBitrate = 2200000; // Hard cap at 2.2 Mbps (perfect smooth 720p)
                         } else {
-                            parameters.encodings[0].maxBitrate = 4500000; 
+                            parameters.encodings[0].maxBitrate = 4500000; // Hard cap at 4.5 Mbps (perfect compressed 1080p)
                         }
                         
                         sender.setParameters(parameters).catch(console.error);
@@ -513,6 +513,7 @@
             });
         }
 
+        // Handle Active Window Streams
         streamToggleBtn.addEventListener('click', async () => {
             if (!isStreaming) {
                 try {
@@ -521,6 +522,7 @@
                         ? { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 60, max: 60 } }
                         : { width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 60, max: 60 } };
                     
+                    // CRITICAL FIX: Explicit configurations to pull System Audio natively
                     localScreenStream = await navigator.mediaDevices.getDisplayMedia({
                         video: { ...vConstraints, displaySurface: "monitor" },
                         audio: {
@@ -595,5 +597,61 @@
             } catch (err) { console.error(err); }
         });
 
+        // Display Nodes Layout Handlers
         function addToLobbyDisplay(id, name, local = false) {
-            if (lobby
+            if (lobbyMembersList.some(m => m.id === id)) return;
+            lobbyMembersList.push({ id, name: name + (local ? " (You)" : ""), isSpeaking: false });
+            renderLobbyUI();
+        }
+
+        function removeFromLobbyDisplay(id) {
+            lobbyMembersList = lobbyMembersList.filter(m => m.id !== id);
+            const el = document.getElementById(`audio-${id}`);
+            if (el) el.remove();
+            renderLobbyUI();
+        }
+
+        function syncLobbyList(newList) {
+            lobbyMembersList = newList.map(m => m.id === peer.id ? { id: m.id, name: m.name + " (You)", isSpeaking: m.isSpeaking } : m);
+            renderLobbyUI();
+        }
+
+        function broadcastLobbyState() {
+            Object.values(connectedPeersMap).forEach(p => {
+                if (p.connection.open) p.connection.send({ type: 'lobby-update', list: lobbyMembersList });
+            });
+        }
+
+        function updateVoiceIndicator(peerId, isSpeaking) {
+            const indicator = document.getElementById(`voice-icon-${peerId}`);
+            if (indicator) {
+                if (isSpeaking) indicator.classList.add('speaking');
+                else indicator.classList.remove('speaking');
+            }
+            const member = lobbyMembersList.find(m => m.id === peerId);
+            if (member) member.isSpeaking = isSpeaking;
+        }
+
+        function renderLobbyUI() {
+            viewerListContainer.innerHTML = "";
+            partyCountSpan.innerText = lobbyMembersList.length;
+            lobbyMembersList.forEach(member => {
+                const item = document.createElement('div');
+                item.className = "viewer-item";
+                item.innerHTML = `
+                    <div class="viewer-info">
+                        <div class="viewer-avatar">${member.name.charAt(0)}</div>
+                        <span>${member.name}</span>
+                    </div>
+                    <div class="voice-indicator ${member.isSpeaking ? 'speaking' : ''}" id="voice-icon-${member.id}">
+                        <div class="bar"></div>
+                        <div class="bar"></div>
+                        <div class="bar"></div>
+                    </div>
+                `;
+                viewerListContainer.appendChild(item);
+            });
+        }
+    </script>
+</body>
+</html>
