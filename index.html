@@ -549,12 +549,26 @@
         peer.on('connection', (conn) => { handleDataConnection(conn); });
 
         function handleDataConnection(conn) {
-            // Bind explicit clean closure disconnect logic hooks
             conn.on('close', () => { handlePeerDisconnection(conn.peer); });
             conn.on('error', () => { handlePeerDisconnection(conn.peer); });
 
             conn.on('open', () => { 
                 conn.send({ type: 'handshake', name: myRandomName }); 
+                
+                // DIAGNOSTIC FIX: Watch browser RTC peer connection tracking pipeline directly
+                const pc = conn.peerConnection;
+                if (pc) {
+                    pc.onconnectionstatechange = () => {
+                        if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed' || pc.connectionState === 'closed') {
+                            handlePeerDisconnection(conn.peer);
+                        }
+                    };
+                    pc.oniceconnectionstatechange = () => {
+                        if (pc.iceConnectionState === 'disconnected' || pc.iceConnectionState === 'failed' || pc.iceConnectionState === 'closed') {
+                            handlePeerDisconnection(conn.peer);
+                        }
+                    };
+                }
             });
 
             conn.on('data', (data) => {
@@ -586,6 +600,7 @@
         }
 
         function handlePeerDisconnection(peerId) {
+            if (!connectedPeersMap[peerId] && !lobbyMembersList.some(m => m.id === peerId)) return;
             delete connectedPeersMap[peerId];
             removeFromLobbyDisplay(peerId);
             if (isHost) broadcastLobbyState();
@@ -677,9 +692,13 @@
                     setupLocalVoiceAnalyzer(localMicStream);
 
                     Object.keys(connectedPeersMap).forEach(peerId => {
-                        peer.call(peerId, localMicStream, { metadata: { type: 'voice' } });
+                        const call = peer.call(peerId, localMicStream, { metadata: { type: 'voice' } });
+                        bindVoiceDisconnect(call);
                     });
-                    if (!isHost) peer.call(targetRoomId, localMicStream, { metadata: { type: 'voice' } });
+                    if (!isHost) {
+                        const call = peer.call(targetRoomId, localMicStream, { metadata: { type: 'voice' } });
+                        bindVoiceDisconnect(call);
+                    }
                 } catch (err) { statusText.innerText = "Mic connection error."; }
             } else {
                 if (localMicStream) localMicStream.getTracks().forEach(t => t.stop());
@@ -690,6 +709,13 @@
                 sendSpeakingStateToAll(false);
             }
         });
+
+        function bindVoiceDisconnect(call) {
+            call.on('close', () => {
+                const targetAudio = document.getElementById(`audio-${call.peer}`);
+                if (targetAudio) targetAudio.remove();
+            });
+        }
 
         function setupLocalVoiceAnalyzer(stream) {
             audioContext = new (window.AudioContext || window.webkitAudioContext)();
@@ -746,7 +772,6 @@
             });
             optimizeConnection(call.peerConnection);
             
-            // Clean up streaming channels if a friend disconnects midway through a video call track loop
             call.on('close', () => {
                 const targetAudio = document.getElementById(`audio-${call.peer}`);
                 if (targetAudio) targetAudio.remove();
@@ -884,7 +909,6 @@
             } catch (err) { console.error(err); }
         });
 
-        // FIXED: Overwrites index items by unique peer ID key match instead of forcing unvalidated push appends
         function addToLobbyDisplay(id, name, local = false) {
             const existingIndex = lobbyMembersList.findIndex(m => m.id === id);
             const entryData = { id, name: name + (local ? " (You)" : ""), isSpeaking: false };
@@ -905,7 +929,6 @@
             }
         }
 
-        // FIXED: Explicitly triggers UI cleanup drops when PeerJS connection disconnect notifications land
         function removeFromLobbyDisplay(id) {
             lobbyMembersList = lobbyMembersList.filter(m => m.id !== id);
             const el = document.getElementById(`audio-${id}`);
@@ -914,11 +937,18 @@
         }
 
         function syncLobbyList(newList) {
-            lobbyMembersList = newList.map(m => m.id === peer.id ? { id: m.id, name: myRandomName + " (You)", isSpeaking: m.isSpeaking } : m);
+            // DIAGNOSTIC CHECK: Filter out ghost IDs that don't match active Peer connection instances downstream
+            if (!isHost) {
+                lobbyMembersList = newList.map(m => m.id === peer.id ? { id: m.id, name: myRandomName + " (You)", isSpeaking: m.isSpeaking } : m);
+            } else {
+                lobbyMembersList = lobbyMembersList.filter(m => m.id === peer.id || connectedPeersMap[m.id]);
+            }
             renderLobbyUI();
         }
 
         function broadcastLobbyState() {
+            // Host filters out non-responsive connection state objects before broadcasting to clean list arrays
+            lobbyMembersList = lobbyMembersList.filter(m => m.id === peer.id || connectedPeersMap[m.id]);
             Object.values(connectedPeersMap).forEach(p => {
                 if (p.connection.open) p.connection.send({ type: 'lobby-update', list: lobbyMembersList });
             });
