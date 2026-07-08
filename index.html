@@ -100,17 +100,15 @@
             transform: translateY(2px);
         }
 
-        /* Twitch-styled 3D Extruded typography layout */
         h1 {
             margin: 0;
             font-size: 1.5rem;
             font-weight: 700;
-            text-transform: lowercase; /* Matches the lowercase aesthetic signature of Twitch */
+            text-transform: lowercase;
             color: var(--off-white);
             letter-spacing: -0.5px;
             position: relative;
             display: inline-block;
-            /* Layered text shadow configurations mapping flat angles down and to the left */
             text-shadow: 
                 -1px 1px 0px #0b0706,
                 -2px 2px 0px #0b0706,
@@ -695,8 +693,24 @@
             if (!connectedPeersMap[peerId] && !lobbyMembersList.some(m => m.id === peerId)) return;
             delete connectedPeersMap[peerId];
             removeFromLobbyDisplay(peerId);
+            
+            // CRITICAL FIX: If a watcher loses connection to the host peer specifically, clean layout instantly
+            if (!isHost && peerId === targetRoomId) {
+                handleStreamTerminationUI(false);
+                fallbackStatusString.innerText = "Host disconnected or closed the room.";
+            }
+
             if (isHost) broadcastLobbyState();
         }
+
+        // Host Tab Closure Backup Interceptor
+        window.addEventListener('beforeunload', () => {
+            if (isHost && isStreaming) {
+                Object.values(connectedPeersMap).forEach(p => {
+                    if (p.connection.open) p.connection.send({ type: 'stream-stopped' });
+                });
+            }
+        });
 
         editNameBtn.addEventListener('click', () => {
             if (editNameBtn.innerText === "Edit") {
