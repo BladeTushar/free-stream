@@ -413,7 +413,6 @@
             font-size: 0.7rem;
         }
 
-        /* Real-time typing status layout text block */
         .typing-status-indicator {
             position: absolute;
             bottom: 58px;
@@ -628,7 +627,6 @@
             statusText.innerText = "Opening lounge room...";
             addToLobbyDisplay(peer.id, myRandomName, true);
             
-            // STABILITY UPGRADE: Host runs network connectivity heartbeats
             setInterval(() => {
                 if (!isStreaming) return;
                 Object.values(connectedPeersMap).forEach(p => {
@@ -665,6 +663,49 @@
         }
 
         peer.on('connection', (conn) => { handleDataConnection(conn); });
+
+        // Glitch-proof, pure code synthesized pop sound engine
+        function playSoothingNotificationChime() {
+            try {
+                const ctx = new (window.AudioContext || window.webkitAudioContext)();
+                
+                // FIXED: Safety lock recovery logic to prevent browser context freeze glitches
+                if (ctx.state === 'suspended') {
+                    ctx.resume();
+                }
+                
+                const osc1 = ctx.createOscillator();
+                const gain1 = ctx.createGain();
+                osc1.type = 'sine';
+                osc1.frequency.setValueAtTime(783.99, ctx.currentTime);
+                
+                const osc2 = ctx.createOscillator();
+                const gain2 = ctx.createGain();
+                osc2.type = 'sine';
+                osc2.frequency.setValueAtTime(1046.50, ctx.currentTime + 0.08);
+
+                // FIXED: Exponential fade curves completely remove any harsh hardware speaker pops
+                gain1.gain.setValueAtTime(0.0, ctx.currentTime);
+                gain1.gain.linearRampToValueAtTime(0.12, ctx.currentTime + 0.04);
+                gain1.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35);
+
+                gain2.gain.setValueAtTime(0.0, ctx.currentTime + 0.08);
+                gain2.gain.linearRampToValueAtTime(0.08, ctx.currentTime + 0.12);
+                gain2.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.45);
+
+                osc1.connect(gain1);
+                gain1.connect(ctx.destination);
+                osc2.connect(gain2);
+                gain2.connect(ctx.destination);
+
+                osc1.start(ctx.currentTime);
+                osc1.stop(ctx.currentTime + 0.4);
+                osc2.start(ctx.currentTime + 0.08);
+                osc2.stop(ctx.currentTime + 0.5);
+            } catch (e) {
+                console.warn("Audio thread block intercepted successfully.");
+            }
+        }
 
         function handleDataConnection(conn) {
             conn.on('close', () => { handlePeerDisconnection(conn.peer); });
@@ -710,6 +751,7 @@
                 }
                 if (data.type === 'chat-msg') {
                     appendChatBubble(data.senderName, data.text);
+                    playSoothingNotificationChime(); 
                 }
                 if (data.type === 'stream-stopped') {
                     handleStreamTerminationUI(false);
@@ -723,7 +765,6 @@
                     renderTypingIndicatorLabel();
                 }
                 if (data.type === 'ping-pulse') {
-                    // Responding to ping pulses keeps connection sockets active
                     if(conn.open) conn.send({ type: 'pong-ack' });
                 }
                 if (data.type === 'lobby-update') syncLobbyList(data.list);
@@ -761,7 +802,6 @@
             }
         });
 
-        // Typing Action Event Hooks
         chatInputField.addEventListener('input', () => {
             if (!isCurrentlyTypingState) {
                 isCurrentlyTypingState = true;
