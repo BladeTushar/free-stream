@@ -338,7 +338,6 @@
         const targetRoomId = urlParams.get('room');
         const isHost = !targetRoomId;
 
-        // FIX: Enforce Ice Config to cross NAT firewalls between different global routers
         const peerConfig = {
             config: {
                 iceServers: [
@@ -525,7 +524,6 @@
             });
         }
 
-        /* FIXED EVENT LISTENER WITH MOBILE FALLBACK HANDLING */
         streamToggleBtn.addEventListener('click', async () => {
             if (!isStreaming) {
                 try {
@@ -534,8 +532,8 @@
                         ? { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 60, max: 60 } }
                         : { width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 60, max: 60 } };
                     
-                    // Desktop Logic: getDisplayMedia is supported
                     if (navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia) {
+                        // FIX: Explicitly request audio handling parameters in getDisplayMedia
                         localScreenStream = await navigator.mediaDevices.getDisplayMedia({
                             video: { ...vConstraints, displaySurface: "monitor" },
                             audio: {
@@ -545,17 +543,23 @@
                                 suppressLocalAudioPlayback: false
                             }
                         });
+
+                        // UI Check: alert host if they forgot to toggle the "Share system audio" checkbox
+                        if (localScreenStream.getAudioTracks().length === 0) {
+                            statusText.innerText = "Notice: Desktop audio not checked in picker.";
+                        } else {
+                            statusText.innerText = "Lobby ready. Audio channel initialized.";
+                        }
                     } 
-                    // Mobile Fallback Logic: Capture user camera instead
                     else if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
                         statusText.innerText = "Mobile device: Launching camera feed...";
                         localScreenStream = await navigator.mediaDevices.getUserMedia({
                             video: { 
-                                facingMode: "user", // "environment" for rear camera
+                                facingMode: "user",
                                 width: { ideal: 1280 },
                                 height: { ideal: 720 }
                             },
-                            audio: false // Handled separately by the Mic button toggle
+                            audio: false
                         });
                     } else {
                         throw new Error("Streaming media options are unavailable on this device.");
@@ -567,7 +571,6 @@
                     streamToggleBtn.innerText = "Stop Sharing";
                     streamToggleBtn.className = "btn-stop";
                     
-                    // Show Window swap option only on Desktop setups
                     if (navigator.mediaDevices.getDisplayMedia) swapStreamBtn.style.display = 'inline-flex';
 
                     Object.keys(connectedPeersMap).forEach(peerId => {
