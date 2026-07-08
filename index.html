@@ -197,7 +197,6 @@
         .btn-mic-on { background: var(--success-color) !important; color: #1c1412 !important; }
         .btn-mic-off { background: rgba(224, 122, 95, 0.15) !important; color: var(--danger-color) !important; }
 
-        /* Username Field Styles */
         .profile-section {
             display: flex;
             align-items: center;
@@ -303,7 +302,6 @@
         .voice-indicator.speaking .bar:nth-child(2) { animation: bounce 0.4s ease-in-out infinite alternate 0.1s; }
         .voice-indicator.speaking .bar:nth-child(3) { animation: bounce 0.5s ease-in-out infinite alternate 0.2s; }
 
-        /* Chat System Panel Layout CSS */
         .chat-container {
             display: flex;
             flex-direction: column;
@@ -472,7 +470,6 @@
         const partyCountSpan = document.getElementById('party-count');
         const audioContainer = document.getElementById('audio-container');
 
-        // Chat & Profile Element DOM Selectors
         const profileArea = document.getElementById('profile-area');
         const displayNameLabel = document.getElementById('display-name-label');
         const editNameBtn = document.getElementById('edit-name-btn');
@@ -497,7 +494,6 @@
         const nouns = ["Barista", "Otter", "Fox", "Panda", "Sloth", "Beaver", "Owl", "Falcon", "Koala"];
         let myRandomName = adjectives[Math.floor(Math.random() * adjectives.length)] + " " + nouns[Math.floor(Math.random() * nouns.length)];
 
-        // Set initial label visualization
         displayNameLabel.innerText = myRandomName;
 
         if ('pictureInPictureEnabled' in document) pipBtn.style.display = 'inline-flex';
@@ -553,6 +549,7 @@
         peer.on('connection', (conn) => { handleDataConnection(conn); });
 
         function handleDataConnection(conn) {
+            // Bind explicit clean closure disconnect logic hooks
             conn.on('close', () => { handlePeerDisconnection(conn.peer); });
             conn.on('error', () => { handlePeerDisconnection(conn.peer); });
 
@@ -594,7 +591,6 @@
             if (isHost) broadcastLobbyState();
         }
 
-        // Custom Username Change Event Controller Logic
         editNameBtn.addEventListener('click', () => {
             if (editNameBtn.innerText === "Edit") {
                 const currentVal = displayNameLabel.innerText.replace(" (You)", "");
@@ -613,21 +609,17 @@
                     if(cleanName.length > 0) {
                         myRandomName = cleanName;
                     }
-                    // Re-render baseline profile label controls block
                     profileArea.innerHTML = `
                         <span id="display-name-label">${myRandomName} (You)</span>
                         <button id="edit-name-btn" class="btn-edit-name">Edit</button>
                     `;
-                    // Update global references instantly
                     displayNameLabel.innerText = myRandomName + " (You)";
                     updateLobbyMemberName(peer.id, myRandomName + " (You)");
                     
-                    // Dispatch change notice notification array out to room peers
                     Object.values(connectedPeersMap).forEach(p => {
                         if (p.connection.open) p.connection.send({ type: 'name-update', newName: myRandomName });
                     });
                     if (!isHost) {
-                        // If viewer, notify host so they sync lobby records out downstream
                         const hostPeer = Object.values(connectedPeersMap)[0];
                         if (hostPeer && hostPeer.connection.open) {
                             hostPeer.connection.send({ type: 'name-update', newName: myRandomName });
@@ -635,7 +627,6 @@
                     } else {
                         broadcastLobbyState();
                     }
-                    // Reconnect listener binds cleanly
                     document.getElementById('edit-name-btn').addEventListener('click', () => editNameBtn.click());
                 };
 
@@ -644,16 +635,13 @@
             }
         });
 
-        // Chat Message Shipping Handler Loop Configuration
         function sendChatMessage() {
             const rawText = chatInputField.value.trim();
             if (rawText.length === 0) return;
 
-            // Render on local source node viewport directly first
             appendChatBubble(myRandomName, rawText);
             chatInputField.value = "";
 
-            // Push payload data downstream out across P2P architecture pipes
             Object.values(connectedPeersMap).forEach(p => {
                 if (p.connection.open) {
                     p.connection.send({ type: 'chat-msg', senderName: myRandomName, text: rawText });
@@ -757,6 +745,12 @@
                 }
             });
             optimizeConnection(call.peerConnection);
+            
+            // Clean up streaming channels if a friend disconnects midway through a video call track loop
+            call.on('close', () => {
+                const targetAudio = document.getElementById(`audio-${call.peer}`);
+                if (targetAudio) targetAudio.remove();
+            });
         });
 
         function optimizeConnection(peerConnection) {
@@ -890,9 +884,16 @@
             } catch (err) { console.error(err); }
         });
 
+        // FIXED: Overwrites index items by unique peer ID key match instead of forcing unvalidated push appends
         function addToLobbyDisplay(id, name, local = false) {
-            if (lobbyMembersList.some(m => m.id === id)) return;
-            lobbyMembersList.push({ id, name: name + (local ? " (You)" : ""), isSpeaking: false });
+            const existingIndex = lobbyMembersList.findIndex(m => m.id === id);
+            const entryData = { id, name: name + (local ? " (You)" : ""), isSpeaking: false };
+            
+            if (existingIndex !== -1) {
+                lobbyMembersList[existingIndex] = entryData;
+            } else {
+                lobbyMembersList.push(entryData);
+            }
             renderLobbyUI();
         }
 
@@ -904,6 +905,7 @@
             }
         }
 
+        // FIXED: Explicitly triggers UI cleanup drops when PeerJS connection disconnect notifications land
         function removeFromLobbyDisplay(id) {
             lobbyMembersList = lobbyMembersList.filter(m => m.id !== id);
             const el = document.getElementById(`audio-${id}`);
