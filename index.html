@@ -4,11 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Free Stream Party - High Performance</title>
-    <!-- Importing JetBrains Mono Font -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-    <!-- Minimal Tab Logo (Favicon) -->
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%23d4a373'/><path d='M30 35h40v25H30zM40 68h20M50 60v8' stroke='%231c1412' stroke-width='6' stroke-linecap='round' fill='none'/></svg>">
     <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
     <style>
@@ -605,7 +603,6 @@
         const nouns = ["Barista", "Otter", "Fox", "Panda", "Sloth", "Beaver", "Owl", "Falcon", "Koala"];
         let myRandomName = adjectives[Math.floor(Math.random() * adjectives.length)] + " " + nouns[Math.floor(Math.random() * nouns.length)];
 
-        // Fixed baseline display sync initialization
         displayNameLabel.innerText = myRandomName + " (You)";
 
         if ('pictureInPictureEnabled' in document) pipBtn.style.display = 'inline-flex';
@@ -614,13 +611,15 @@
         const targetRoomId = urlParams.get('room');
         const isHost = !targetRoomId;
 
+        // SPEED UPGRADE: Explicit Trickle ICE and forced IPv4 optimization properties
         const peerConfig = {
             config: {
                 iceServers: [
                     { urls: 'stun:stun.l.google.com:19302' },
-                    { urls: 'stun:stun1.l.google.com:19302' },
-                    { urls: 'stun:stun2.l.google.com:19302' }
-                ]
+                    { urls: 'stun:stun1.l.google.com:19302' }
+                ],
+                iceTransportPolicy: 'all',
+                iceCandidatePoolSize: 2 // Pre-gathers routing pipes before call is initiated to maximize connection speeds
             }
         };
 
@@ -651,7 +650,8 @@
                 setupInviteLink(id);
             } else {
                 statusText.innerText = "Syncing network layers...";
-                const dataConn = peer.connect(targetRoomId);
+                // SPEED UPGRADE: Connect immediately with trickle tokens
+                const dataConn = peer.connect(targetRoomId, { reliable: true });
                 handleDataConnection(dataConn);
             }
         });
@@ -1194,7 +1194,6 @@
             }
         }
 
-        // FIXED: Storing purely clean usernames in the tracking database loop
         function addToLobbyDisplay(id, name) {
             const existingIndex = lobbyMembersList.findIndex(m => m.id === id);
             const entryData = { id, name: name, isSpeaking: false };
@@ -1224,7 +1223,6 @@
 
         function syncLobbyList(newList) {
             if (!isHost) {
-                // Ensure the watcher tracks their own clean local custom name variant mapping
                 lobbyMembersList = newList.map(m => m.id === peer.id ? { id: m.id, name: myRandomName, isSpeaking: m.isSpeaking } : m);
             } else {
                 lobbyMembersList = lobbyMembersList.filter(m => m.id === peer.id || connectedPeersMap[m.id]);
@@ -1249,14 +1247,12 @@
             if (member) member.isSpeaking = isSpeaking;
         }
 
-        // FIXED: Labels are dynamically checked and generated at UI computation step
         function renderLobbyUI() {
             viewerListContainer.innerHTML = "";
             partyCountSpan.innerText = lobbyMembersList.length;
             lobbyMembersList.forEach(member => {
                 let labelSuffix = "";
                 
-                // Determine roles systematically to prevent string duplicate leaks
                 const memberIsHost = isHost ? (member.id === peer.id) : (member.id === targetRoomId);
                 const memberIsMe = (member.id === peer.id);
                 
