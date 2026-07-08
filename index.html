@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Free Stream Party - High Performance</title>
+    <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
+    <style>
+        :root {
+            --bg-gradient: linear-gradient(135deg, #1c1412 0%, #2b1e1b 100%);
+            --panel-bg: rgba(54, 41, 38, 0.55);
+            --panel-border: rgba(220, 203, 191, 0.12);
+            --accent-color: #d4a373;
+            --accent-glow: rgba(212, 163, 115, 0.4);
+            --danger-color: #e07a5f;
+            --danger-glow: rgba(224, 122, 95, 0.4);
+            --text-main: #fefae0;
+            --text-muted: #cca997;
+            --success-color: #81b29a;
+            --off-white: #fefae0;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background: var(--bg-gradient);
+            color: var(--text-main);
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            box-sizing: border-box;
+            padding: 20px 0;
+        }
+
+        .app-layout {
+            width: 95%;
+            max-width: 1300px;
+            display: grid;
+            grid-template-columns: 1fr 320px;
+            gap: 24px;
+            animation: fadeIn 0.6s ease-out;
+        }
+
+        .main-content {
+            background: var(--panel-bg);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid var(--panel-border);
+            border-radius: 28px;
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .sidebar {
+            background: var(--panel-bg);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid var(--panel-border);
+            border-radius: 28px;
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 18px;
+            max-height: calc(100vh - 80px);
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--panel-border);
+            padding-bottom: 15px;
+        }
+
+        h1 {
+            margin: 0;
+            font-size: 1.4rem;
+            font-weight: 700;
+            background: linear-gradient(to right, var(--off-white), var(--accent-color));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .status-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            background-color: #d5bdaf;
+            border-radius: 50%;
+        }
+
+        .status-dot.active {
+            background-color: var(--success-color);
+            box-shadow: 0 0 12px var(--success-color);
+        }
+
+        .status-text {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+
+        .video-container {
+            width: 100%;
+            aspect-ratio: 16/9;
+            background-color: #0b0706;
+            border-radius: 18px;
+            overflow: hidden;
+            position: relative;
+            border: 1px solid rgba(254, 250, 224, 0.05);
+            box-shadow: 0 15px 35px rgba(0,0,0,0.5);
+        }
+
+        video {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+
+        .controls {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        button, select {
+            background: rgba(254, 250, 224, 0.06);
+            color: var(--text-main);
+            border: 1px solid var(--panel-border);
+            padding: 12px 22px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            border-radius: 14px;
+            cursor: pointer;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        select {
+            appearance: none;
+            outline: none;
+            padding-right: 35px;
+            background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23d4a373' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'></polyline></svg>");
+            background-repeat: no-repeat;
+            background-position: right 12px center;
+            background-size: 14px;
+        }
+
+        /* FIXED: Styled the drop-down menu option block container explicitly */
+        select option {
+            background-color: #2b1e1b;
+            color: var(--text-main);
+            padding: 10px;
+        }
+
+        button:hover, select:hover { 
+            background: rgba(254, 250, 224, 0.12);
+            transform: translateY(-1px);
+        }
+
+        .btn-start { background: var(--accent-color) !important; color: #1c1412 !important; box-shadow: 0 4px 14px var(--accent-glow); }
+        .btn-stop { background: var(--danger-color) !important; color: #fff !important; box-shadow: 0 4px 14px var(--danger-glow); }
+        .btn-mic-on { background: var(--success-color) !important; color: #1c1412 !important; }
+        .btn-mic-off { background: rgba(224, 122, 95, 0.15) !important; color: var(--danger-color) !important; }
+
+        .sidebar h2 {
+            margin: 0;
+            font-size: 1.1rem;
+            color: var(--text-main);
+            border-bottom: 1px solid var(--panel-border);
+            padding-bottom: 10px;
+        }
+
+        .viewer-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            overflow-y: auto;
+            flex-grow: 1;
+        }
+
+        .viewer-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 14px;
+            background: rgba(213, 189, 175, 0.04);
+            border: 1px solid rgba(213, 189, 175, 0.03);
+            border-radius: 12px;
+            font-size: 0.9rem;
+        }
+
+        .viewer-info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .viewer-avatar {
+            width: 28px;
+            height: 28px;
+            background: var(--accent-color);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.8rem;
+            font-weight: 700;
+            color: #1c1412;
+        }
+
+        .voice-indicator {
+            display: flex;
+            align-items: flex-end;
+            gap: 3px;
+            width: 20px;
+            height: 15px;
+            opacity: 0.2;
+            transition: opacity 0.2s ease;
+        }
+
+        .voice-indicator.speaking {
+            opacity: 1;
+        }
+
+        .bar {
+            width: 3px;
+            height: 4px;
+            background-color: var(--success-color);
+            border-radius: 2px;
+            transition: height 0.1s ease;
+        }
+
+        .voice-indicator.speaking .bar:nth-child(1) { animation: bounce 0.6s ease-in-out infinite alternate; }
+        .voice-indicator.speaking .bar:nth-child(2) { animation: bounce 0.4s ease-in-out infinite alternate 0.1s; }
+        .voice-indicator.speaking .bar:nth-child(3) { animation: bounce 0.5s ease-in-out infinite alternate 0.2s; }
+
+        @keyframes bounce {
+            from { height: 4px; }
+            to { height: 15px; }
+        }
+
+        .badge {
+            position: absolute;
+            top: 16px;
+            left: 16px;
+            background: rgba(129, 178, 154, 0.2);
+            padding: 6px 12px;
+            border-radius: 8px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: #a8dadc;
+            z-index: 10;
+        }
+
+        #audio-container { display: none; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        @media (max-width: 900px) { .app-layout { grid-template-columns: 1fr; } .sidebar { max-height: 250px; } }
+    </style>
+</head>
+<body>
+
+    <div class="app-layout">
+        <div class="main-content">
+            <header>
+                <h1>Free Stream Party</h1>
+                <div class="status-wrapper">
+                    <div id="status-dot" class="status-dot"></div>
+                    <div id="status-text" class="status-text">Connecting...</div>
+                </div>
+            </header>
+
+            <div class="video-container">
+                <div class="badge" id="quality-badge" style="display: none;">Live Feed Connected</div>
+                <video id="remote-video" autoplay playsinline controls></video>
+            </div>
+
+            <div class="controls">
+                <button id="stream-toggle-btn" class="btn-start">Start Sharing</button>
+                <select id="quality-select">
+                    <option value="720p">720p (Recommended / No Lag)</option>
+                    <option value="1080p">1080p (Requires Fast Upload)</option>
+                </select>
+                <button id="swap-stream-btn" style="display: none;">Change Window</button>
+                <button id="mic-toggle-btn" class="btn-mic-off">Mic: Muted</button>
+                <button id="pip-btn" style="display: none;">🔲 Miniplayer</button>
+                <button id="copy-link-btn" style="display: none;">Copy Invite Link</button>
+            </div>
+        </div>
+
+        <div class="sidebar">
+            <h2>Lobby Party (<span id="party-count">1</span>)</h2>
+            <div class="viewer-list" id="viewer-list"></div>
+        </div>
+    </div>
+
+    <div id="audio-container"></div>
+
+    <script>
+        const streamToggleBtn = document.getElementById('stream-toggle-btn');
+        const swapStreamBtn = document.getElementById('swap-stream-btn');
+        const micToggleBtn = document.getElementById('mic-toggle-btn');
+        const pipBtn = document.getElementById('pip-btn');
+        const copyLinkBtn = document.getElementById('copy-link-btn');
+        const qualitySelect = document.getElementById('quality-select');
+        const statusText = document.getElementById('status-text');
+        const statusDot = document.getElementById('status-dot');
+        const remoteVideo = document.getElementById('remote-video');
+        const qualityBadge = document.getElementById('quality-badge');
+        const viewerListContainer = document.getElementById('viewer-list');
+        const partyCountSpan = document.getElementById('party-count');
+        const audioContainer = document.getElementById('audio-container');
+
+        let peer = null;
+        let localScreenStream = null;
+        let localMicStream = null;
+        let isStreaming = false;
+        let isMicOn = false;
+        
+        let connectedPeersMap = {}; 
+        let activeCallsArray = []; 
+        let lobbyMembersList = [];
+
+        let audioContext = null;
+        let localAnalyser = null;
+
+        const adjectives = ["Mocha", "Espresso", "Hazelnut", "Creamy", "Toasty", "Roasted", "Chestnut", "Velvet", "Golden"];
+        const nouns = ["Barista", "Otter", "Fox", "Panda", "Sloth", "Beaver", "Owl", "Falcon", "Koala"];
+        const myRandomName = adjectives[Math.floor(Math.random() * adjectives.length)] + " " + nouns[Math.floor(Math.random() * nouns.length)];
+
+        if ('pictureInPictureEnabled' in document) pipBtn.style.display = 'inline-flex';
+
+        const urlParams = new URLSearchParams(window.location.search);
+        const targetRoomId = urlParams.get('room');
+        const isHost = !targetRoomId;
+
+        if (isHost) {
+            const generatedRoomId = 'party-' + Math.random().toString(36).substring(2, 9);
+            peer = new Peer(generatedRoomId);
+            statusText.innerText = "Opening lounge room...";
+            addToLobbyDisplay(peer.id, myRandomName, true);
+        } else {
+            peer = new Peer();
+            streamToggleBtn.style.display = 'none';
+            qualitySelect.style.display = 'none';
+            statusText.innerText = "Entering lobby gates...";
+        }
+
+        peer.on('open', (id) => {
+            statusDot.classList.add('active');
+            if (isHost) {
+                statusText.innerText = "Lobby ready.";
+                copyLinkBtn.style.display = 'inline-flex';
+                setupInviteLink(id);
+            } else {
+                statusText.innerText = "Syncing network layers...";
+                const dataConn = peer.connect(targetRoomId);
+                handleDataConnection(dataConn);
+            }
+        });
+
+        function setupInviteLink(id) {
+            const inviteUrl = `${window.location.origin}${window.location.pathname}?room=${id}`;
+            copyLinkBtn.onclick = () => {
+                navigator.clipboard.writeText(inviteUrl);
+                copyLinkBtn.innerText = "Link Copied";
+                setTimeout(() => copyLinkBtn.innerText = "Copy Invite Link", 2000);
+            };
+        }
+
+        peer.on('connection', (conn) => { handleDataConnection(conn); });
+
+        function handleDataConnection(conn) {
+            conn.on('open', () => { conn.send({ type: 'handshake', name: myRandomName }); });
+            conn.on('data', (data) => {
+                if (data.type === 'handshake') {
+                    connectedPeersMap[conn.peer] = { name: data.name, connection: conn };
+                    addToLobbyDisplay(conn.peer, data.name);
+                    if (isHost) {
+                        broadcastLobbyState();
+                        if (localScreenStream && isStreaming) {
+                            const call = peer.call(conn.peer, localScreenStream, { metadata: { type: 'video' } });
+                            activeCallsArray.push(call);
+                            optimizeConnection(call.peerConnection);
+                        }
+                    }
+                }
+                if (data.type === 'lobby-update') syncLobbyList(data.list);
+                if (data.type === 'speaking-state') updateVoiceIndicator(data.peerId, data.isSpeaking);
+            });
+            conn.on('close', () => {
+                removeFromLobbyDisplay(conn.peer);
+                if (isHost) broadcastLobbyState();
+            });
+        }
+
+        micToggleBtn.addEventListener('click', async () => {
+            if (!isMicOn) {
+                try {
+                    localMicStream = await navigator.mediaDevices.getUserMedia({ 
+                        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }, 
+                        video: false 
+                    });
+                    isMicOn = true;
+                    micToggleBtn.innerText = "Mic: Talk Active";
+                    micToggleBtn.className = "btn-mic-on";
+
+                    setupLocalVoiceAnalyzer(localMicStream);
+
+                    Object.keys(connectedPeersMap).forEach(peerId => {
+                        peer.call(peerId, localMicStream, { metadata: { type: 'voice' } });
+                    });
+                    if (!isHost) peer.call(targetRoomId, localMicStream, { metadata: { type: 'voice' } });
+                } catch (err) { statusText.innerText = "Mic connection error."; }
+            } else {
+                if (localMicStream) localMicStream.getTracks().forEach(t => t.stop());
+                isMicOn = false;
+                micToggleBtn.innerText = "Mic: Muted";
+                micToggleBtn.className = "btn-mic-off";
+                updateVoiceIndicator(peer.id, false);
+                sendSpeakingStateToAll(false);
+            }
+        });
+
+        function setupLocalVoiceAnalyzer(stream) {
+            audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            const source = audioContext.createMediaStreamSource(stream);
+            localAnalyser = audioContext.createAnalyser();
+            localAnalyser.fftSize = 512;
+            source.connect(localAnalyser);
+            
+            const bufferLength = localAnalyser.frequencyBinCount;
+            const dataArray = new Uint8Array(bufferLength);
+            let wasSpeaking = false;
+
+            function checkVolume() {
+                if (!isMicOn) return;
+                localAnalyser.getByteFrequencyData(dataArray);
+                let total = 0;
+                for (let i = 0; i < bufferLength; i++) total += dataArray[i];
+                let average = total / bufferLength;
+                
+                let isSpeaking = average > 12; 
+                if (isSpeaking !== wasSpeaking) {
+                    updateVoiceIndicator(peer.id, isSpeaking);
+                    sendSpeakingStateToAll(isSpeaking);
+                    wasSpeaking = isSpeaking;
+                }
+                requestAnimationFrame(checkVolume);
+            }
+            checkVolume();
+        }
+
+        function sendSpeakingStateToAll(isSpeaking) {
+            Object.values(connectedPeersMap).forEach(p => {
+                if (p.connection.open) p.connection.send({ type: 'speaking-state', peerId: peer.id, isSpeaking: isSpeaking });
+            });
+        }
+
+        peer.on('call', (call) => {
+            call.answer(isMicOn ? localMicStream : null);
+            call.on('stream', (incomingStream) => {
+                const streamType = call.metadata ? call.metadata.type : 'video';
+                if (streamType === 'video') {
+                    remoteVideo.srcObject = incomingStream;
+                    qualityBadge.style.display = 'block';
+                } else if (streamType === 'voice') {
+                    let audioEl = document.getElementById(`audio-${call.peer}`);
+                    if (!audioEl) {
+                        audioEl = document.createElement('audio');
+                        audioEl.id = `audio-${call.peer}`;
+                        audioEl.autoplay = true;
+                        audioContainer.appendChild(audioEl);
+                    }
+                    audioEl.srcObject = incomingStream;
+                }
+            });
+            optimizeConnection(call.peerConnection);
+        });
+
+        function optimizeConnection(peerConnection) {
+            if (!peerConnection) return;
+            peerConnection.addEventListener('track', () => {
+                const senders = peerConnection.getSenders();
+                senders.forEach(sender => {
+                    if (sender.track && sender.track.kind === 'video') {
+                        const parameters = sender.getParameters();
+                        if (!parameters.encodings) parameters.encodings = [{}];
+                        
+                        parameters.encodings[0].degradationPreference = 'maintain-framerate';
+                        
+                        const selectedQuality = qualitySelect.value;
+                        if (selectedQuality === '720p') {
+                            parameters.encodings[0].maxBitrate = 2200000; 
+                        } else {
+                            parameters.encodings[0].maxBitrate = 4500000; 
+                        }
+                        
+                        sender.setParameters(parameters).catch(console.error);
+                    }
+                });
+            });
+        }
+
+        streamToggleBtn.addEventListener('click', async () => {
+            if (!isStreaming) {
+                try {
+                    const mode = qualitySelect.value;
+                    const vConstraints = mode === '720p' 
+                        ? { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 60, max: 60 } }
+                        : { width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 60, max: 60 } };
+                    
+                    localScreenStream = await navigator.mediaDevices.getDisplayMedia({
+                        video: { ...vConstraints, displaySurface: "monitor" },
+                        audio: {
+                            echoCancellation: false,
+                            noiseSuppression: false,
+                            autoGainControl: false,
+                            suppressLocalAudioPlayback: false
+                        }
+                    });
+
+                    remoteVideo.srcObject = localScreenStream;
+                    remoteVideo.muted = true;
+                    isStreaming = true;
+                    streamToggleBtn.innerText = "Stop Sharing";
+                    streamToggleBtn.className = "btn-stop";
+                    swapStreamBtn.style.display = 'inline-flex';
+
+                    Object.keys(connectedPeersMap).forEach(peerId => {
+                        const call = peer.call(peerId, localScreenStream, { metadata: { type: 'video' } });
+                        activeCallsArray.push(call);
+                        optimizeConnection(call.peerConnection);
+                    });
+
+                    localScreenStream.getVideoTracks()[0].onended = () => resetStreamViewport();
+                } catch (err) { console.error(err); }
+            } else { resetStreamViewport(); }
+        });
+
+        swapStreamBtn.addEventListener('click', async () => {
+            if (!isStreaming || !localScreenStream) return;
+            try {
+                const mode = qualitySelect.value;
+                const vConstraints = mode === '720p' 
+                    ? { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 60, max: 60 } }
+                    : { width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 60, max: 60 } };
+
+                const newStream = await navigator.mediaDevices.getDisplayMedia({
+                    video: { ...vConstraints, displaySurface: "monitor" },
+                    audio: { echoCancellation: false, noiseSuppression: false }
+                });
+                const newVideoTrack = newStream.getVideoTracks()[0];
+                remoteVideo.srcObject = newStream;
+                
+                activeCallsArray.forEach(call => {
+                    const videoSender = call.peerConnection.getSenders().find(s => s.track && s.track.kind === 'video');
+                    if (videoSender) videoSender.replaceTrack(newVideoTrack);
+                });
+
+                localScreenStream.getVideoTracks()[0].stop();
+                localScreenStream = newStream;
+                localScreenStream.getVideoTracks()[0].onended = () => resetStreamViewport();
+            } catch (err) { console.error(err); }
+        });
+
+        function resetStreamViewport() {
+            if (document.pictureInPictureElement) document.exitPictureInPicture().catch(console.error);
+            if (localScreenStream) localScreenStream.getTracks().forEach(t => t.stop());
+            activeCallsArray.forEach(call => call.close());
+            activeCallsArray = [];
+            remoteVideo.srcObject = null;
+            isStreaming = false;
+            streamToggleBtn.innerText = "Start Sharing";
+            streamToggleBtn.className = "btn-start";
+            swapStreamBtn.style.display = 'none';
+        }
+
+        pipBtn.addEventListener('click', async () => {
+            try {
+                if (!remoteVideo.srcObject) return;
+                if (document.pictureInPictureElement) await document.exitPictureInPicture();
+                else await remoteVideo.requestPictureInPicture();
+            } catch (err) { console.error(err); }
+        });
+
+        function addToLobbyDisplay(id, name, local = false) {
+            if (lobby
