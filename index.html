@@ -386,7 +386,6 @@
         peer.on('connection', (conn) => { handleDataConnection(conn); });
 
         function handleDataConnection(conn) {
-            // Track when the connection cuts out or gets terminated natively
             conn.on('close', () => { handlePeerDisconnection(conn.peer); });
             conn.on('error', () => { handlePeerDisconnection(conn.peer); });
 
@@ -526,6 +525,7 @@
             });
         }
 
+        /* FIXED EVENT LISTENER WITH MOBILE FALLBACK HANDLING */
         streamToggleBtn.addEventListener('click', async () => {
             if (!isStreaming) {
                 try {
@@ -534,22 +534,41 @@
                         ? { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 60, max: 60 } }
                         : { width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 60, max: 60 } };
                     
-                    localScreenStream = await navigator.mediaDevices.getDisplayMedia({
-                        video: { ...vConstraints, displaySurface: "monitor" },
-                        audio: {
-                            echoCancellation: false,
-                            noiseSuppression: false,
-                            autoGainControl: false,
-                            suppressLocalAudioPlayback: false
-                        }
-                    });
+                    // Desktop Logic: getDisplayMedia is supported
+                    if (navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia) {
+                        localScreenStream = await navigator.mediaDevices.getDisplayMedia({
+                            video: { ...vConstraints, displaySurface: "monitor" },
+                            audio: {
+                                echoCancellation: false,
+                                noiseSuppression: false,
+                                autoGainControl: false,
+                                suppressLocalAudioPlayback: false
+                            }
+                        });
+                    } 
+                    // Mobile Fallback Logic: Capture user camera instead
+                    else if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+                        statusText.innerText = "Mobile device: Launching camera feed...";
+                        localScreenStream = await navigator.mediaDevices.getUserMedia({
+                            video: { 
+                                facingMode: "user", // "environment" for rear camera
+                                width: { ideal: 1280 },
+                                height: { ideal: 720 }
+                            },
+                            audio: false // Handled separately by the Mic button toggle
+                        });
+                    } else {
+                        throw new Error("Streaming media options are unavailable on this device.");
+                    }
 
                     remoteVideo.srcObject = localScreenStream;
                     remoteVideo.muted = true;
                     isStreaming = true;
                     streamToggleBtn.innerText = "Stop Sharing";
                     streamToggleBtn.className = "btn-stop";
-                    swapStreamBtn.style.display = 'inline-flex';
+                    
+                    // Show Window swap option only on Desktop setups
+                    if (navigator.mediaDevices.getDisplayMedia) swapStreamBtn.style.display = 'inline-flex';
 
                     Object.keys(connectedPeersMap).forEach(peerId => {
                         const call = peer.call(peerId, localScreenStream, { metadata: { type: 'video' } });
@@ -558,12 +577,15 @@
                     });
 
                     localScreenStream.getVideoTracks()[0].onended = () => resetStreamViewport();
-                } catch (err) { console.error(err); }
+                } catch (err) { 
+                    console.error(err); 
+                    statusText.innerText = "Stream Exception: " + err.message;
+                }
             } else { resetStreamViewport(); }
         });
 
         swapStreamBtn.addEventListener('click', async () => {
-            if (!isStreaming || !localScreenStream) return;
+            if (!isStreaming || !localScreenStream || !navigator.mediaDevices.getDisplayMedia) return;
             try {
                 const mode = qualitySelect.value;
                 const vConstraints = mode === '720p' 
@@ -608,7 +630,6 @@
             } catch (err) { console.error(err); }
         });
 
-        // UI Array Logic Fixes: Filtering correctly ensures users disappear cleanly on close
         function addToLobbyDisplay(id, name, local = false) {
             if (lobbyMembersList.some(m => m.id === id)) return;
             lobbyMembersList.push({ id, name: name + (local ? " (You)" : ""), isSpeaking: false });
@@ -623,7 +644,6 @@
         }
 
         function syncLobbyList(newList) {
-            // Clean out duplicates and preserve the clean local naming tag structure
             lobbyMembersList = newList.map(m => m.id === peer.id ? { id: m.id, name: myRandomName + " (You)", isSpeaking: m.isSpeaking } : m);
             renderLobbyUI();
         }
