@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Free Stream Party - High Performance</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%23d4a373'/><path d='M30 35h40v25H30zM40 68h20M50 60v8' stroke='%231c1412' stroke-width='6' stroke-linecap='round' fill='none'/></svg>">
     <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
     <style>
         :root {
@@ -34,11 +35,17 @@
             padding: 20px 0;
         }
 
-        .app-layout {
+        .app-container-wrapper {
             width: 95%;
             max-width: 1300px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .app-layout {
             display: grid;
-            grid-template-columns: 1fr 320px;
+            grid-template-columns: 1fr 340px;
             gap: 24px;
             animation: fadeIn 0.6s ease-out;
         }
@@ -65,7 +72,8 @@
             display: flex;
             flex-direction: column;
             gap: 18px;
-            max-height: calc(100vh - 80px);
+            height: calc(100vh - 120px);
+            box-sizing: border-box;
         }
 
         header {
@@ -74,6 +82,17 @@
             align-items: center;
             border-bottom: 1px solid var(--panel-border);
             padding-bottom: 15px;
+        }
+
+        .logo-container {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .minimal-logo-svg {
+            width: 26px;
+            height: 26px;
         }
 
         h1 {
@@ -132,7 +151,7 @@
             align-items: center;
         }
 
-        button, select {
+        button, select, input[type="text"] {
             background: rgba(254, 250, 224, 0.06);
             color: var(--text-main);
             border: 1px solid var(--panel-border);
@@ -145,6 +164,17 @@
             display: inline-flex;
             align-items: center;
             gap: 8px;
+            box-sizing: border-box;
+        }
+
+        input[type="text"] {
+            cursor: text;
+        }
+
+        input[type="text"]:focus {
+            outline: none;
+            border-color: var(--accent-color);
+            background: rgba(254, 250, 224, 0.1);
         }
 
         select {
@@ -167,48 +197,82 @@
         .btn-mic-on { background: var(--success-color) !important; color: #1c1412 !important; }
         .btn-mic-off { background: rgba(224, 122, 95, 0.15) !important; color: var(--danger-color) !important; }
 
+        /* Username Field Styles */
+        .profile-section {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            border-bottom: 1px solid var(--panel-border);
+            padding-bottom: 12px;
+        }
+
+        .profile-section span {
+            font-size: 0.9rem;
+            font-weight: 700;
+            color: var(--accent-color);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            max-width: 180px;
+        }
+
+        .btn-edit-name {
+            padding: 4px 10px;
+            font-size: 0.75rem;
+            border-radius: 8px;
+        }
+
+        .name-edit-input {
+            width: 100%;
+            padding: 6px 12px !important;
+            font-size: 0.85rem !important;
+            border-radius: 10px !important;
+        }
+
         .sidebar h2 {
             margin: 0;
-            font-size: 1.1rem;
+            font-size: 1rem;
             color: var(--text-main);
-            border-bottom: 1px solid var(--panel-border);
-            padding-bottom: 10px;
+            padding-top: 4px;
         }
 
         .viewer-list {
             display: flex;
             flex-direction: column;
-            gap: 10px;
+            gap: 8px;
             overflow-y: auto;
-            flex-grow: 1;
+            max-height: 180px;
+            min-height: 100px;
+            border-bottom: 1px solid var(--panel-border);
+            padding-bottom: 12px;
         }
 
         .viewer-item {
             display: flex;
             align-items: center;
             justify-content: space-between;
-            padding: 10px 14px;
+            padding: 8px 12px;
             background: rgba(213, 189, 175, 0.04);
             border: 1px solid rgba(213, 189, 175, 0.03);
             border-radius: 12px;
-            font-size: 0.9rem;
+            font-size: 0.85rem;
         }
 
         .viewer-info {
             display: flex;
             align-items: center;
-            gap: 12px;
+            gap: 10px;
         }
 
         .viewer-avatar {
-            width: 28px;
-            height: 28px;
+            width: 24px;
+            height: 24px;
             background: var(--accent-color);
             border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 0.8rem;
+            font-size: 0.75rem;
             font-weight: 700;
             color: #1c1412;
         }
@@ -239,10 +303,67 @@
         .voice-indicator.speaking .bar:nth-child(2) { animation: bounce 0.4s ease-in-out infinite alternate 0.1s; }
         .voice-indicator.speaking .bar:nth-child(3) { animation: bounce 0.5s ease-in-out infinite alternate 0.2s; }
 
-        @keyframes bounce {
-            from { height: 4px; }
-            to { height: 15px; }
+        /* Chat System Panel Layout CSS */
+        .chat-container {
+            display: flex;
+            flex-direction: column;
+            flex-grow: 1;
+            overflow: hidden;
+            gap: 10px;
         }
+
+        .chat-messages {
+            flex-grow: 1;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            padding-right: 4px;
+        }
+
+        .chat-bubble {
+            background: rgba(254, 250, 224, 0.04);
+            border: 1px solid rgba(254, 250, 224, 0.03);
+            border-radius: 12px;
+            padding: 8px 12px;
+            font-size: 0.85rem;
+            word-break: break-word;
+            line-height: 1.35;
+        }
+
+        .chat-bubble.system-msg {
+            background: rgba(212, 163, 115, 0.05);
+            border-color: rgba(212, 163, 115, 0.1);
+            color: var(--text-muted);
+            font-style: italic;
+            text-align: center;
+        }
+
+        .chat-user-tag {
+            font-weight: 700;
+            color: var(--accent-color);
+            margin-bottom: 2px;
+            font-size: 0.78rem;
+        }
+
+        .chat-input-row {
+            display: flex;
+            gap: 8px;
+        }
+
+        .chat-input-row input {
+            flex-grow: 1;
+            padding: 10px 14px !important;
+            font-size: 0.85rem !important;
+            border-radius: 12px !important;
+        }
+
+        .chat-input-row button {
+            padding: 10px 16px !important;
+            border-radius: 12px !important;
+        }
+
+        @keyframes bounce { from { height: 4px; } to { height: 15px; } }
 
         .badge {
             position: absolute;
@@ -257,44 +378,80 @@
             z-index: 10;
         }
 
+        .chromium-footer-note {
+            text-align: center;
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            opacity: 0.65;
+            letter-spacing: 0.3px;
+            margin-top: 5px;
+        }
+
         #audio-container { display: none; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-        @media (max-width: 900px) { .app-layout { grid-template-columns: 1fr; } .sidebar { max-height: 250px; } }
+        @media (max-width: 900px) { .app-layout { grid-template-columns: 1fr; } .sidebar { height: 450px; } }
     </style>
 </head>
 <body>
 
-    <div class="app-layout">
-        <div class="main-content">
-            <header>
-                <h1>Free Stream Party</h1>
-                <div class="status-wrapper">
-                    <div id="status-dot" class="status-dot"></div>
-                    <div id="status-text" class="status-text">Connecting...</div>
-                </div>
-            </header>
+    <div class="app-container-wrapper">
+        <div class="app-layout">
+            <div class="main-content">
+                <header>
+                    <div class="logo-container">
+                        <svg class="minimal-logo-svg" viewBox="0 0 100 100">
+                            <rect width="100" height="100" rx="20" fill="#d4a373"/>
+                            <path d="M30 35h40v25H30zM40 68h20M50 60v8" stroke="#1c1412" stroke-width="6" stroke-linecap="round" fill="none"/>
+                        </svg>
+                        <h1>Free Stream Party</h1>
+                    </div>
+                    <div class="status-wrapper">
+                        <div id="status-dot" class="status-dot"></div>
+                        <div id="status-text" class="status-text">Connecting...</div>
+                    </div>
+                </header>
 
-            <div class="video-container">
-                <div class="badge" id="quality-badge" style="display: none;">Live Feed Connected</div>
-                <video id="remote-video" autoplay playsinline controls></video>
+                <div class="video-container">
+                    <div class="badge" id="quality-badge" style="display: none;">Live Feed Connected</div>
+                    <video id="remote-video" autoplay playsinline controls></video>
+                </div>
+
+                <div class="controls">
+                    <button id="stream-toggle-btn" class="btn-start">Start Sharing</button>
+                    <select id="quality-select">
+                        <option value="720p">720p (Recommended / No Lag)</option>
+                        <option value="1080p">1080p (Requires Fast Upload)</option>
+                    </select>
+                    <button id="swap-stream-btn" style="display: none;">换 Window</button>
+                    <button id="mic-toggle-btn" class="btn-mic-off">Mic: Muted</button>
+                    <button id="pip-btn" style="display: none;">🔲 Miniplayer</button>
+                    <button id="copy-link-btn" style="display: none;">Copy Invite Link</button>
+                </div>
             </div>
 
-            <div class="controls">
-                <button id="stream-toggle-btn" class="btn-start">Start Sharing</button>
-                <select id="quality-select">
-                    <option value="720p">720p (Recommended / No Lag)</option>
-                    <option value="1080p">1080p (Requires Fast Upload)</option>
-                </select>
-                <button id="swap-stream-btn" style="display: none;">换 Window</button>
-                <button id="mic-toggle-btn" class="btn-mic-off">Mic: Muted</button>
-                <button id="pip-btn" style="display: none;">🔲 Miniplayer</button>
-                <button id="copy-link-btn" style="display: none;">Copy Invite Link</button>
+            <div class="sidebar">
+                <div class="profile-section" id="profile-area">
+                    <span id="display-name-label">Loading...</span>
+                    <button id="edit-name-btn" class="btn-edit-name">Edit</button>
+                </div>
+
+                <h2>Lobby Party (<span id="party-count">1</span>)</h2>
+                <div class="viewer-list" id="viewer-list"></div>
+
+                <div class="chat-container">
+                    <div class="chat-messages" id="chat-messages-box">
+                        <div class="chat-bubble system-msg">Welcome to the lounge room text channel!</div>
+                    </div>
+                    <div class="chat-input-row">
+                        <input type="text" id="chat-input-field" placeholder="Type a message..." autocomplete="off">
+                        <button id="chat-send-btn" class="btn-start">Send</button>
+                    </div>
+                </div>
             </div>
         </div>
-
-        <div class="sidebar">
-            <h2>Lobby Party (<span id="party-count">1</span>)</h2>
-            <div class="viewer-list" id="viewer-list"></div>
+        
+        <div class="chromium-footer-note">
+            Use Chromium based browsers for the best streaming experience.
         </div>
     </div>
 
@@ -315,6 +472,14 @@
         const partyCountSpan = document.getElementById('party-count');
         const audioContainer = document.getElementById('audio-container');
 
+        // Chat & Profile Element DOM Selectors
+        const profileArea = document.getElementById('profile-area');
+        const displayNameLabel = document.getElementById('display-name-label');
+        const editNameBtn = document.getElementById('edit-name-btn');
+        const chatMessagesBox = document.getElementById('chat-messages-box');
+        const chatInputField = document.getElementById('chat-input-field');
+        const chatSendBtn = document.getElementById('chat-send-btn');
+
         let peer = null;
         let localScreenStream = null;
         let localMicStream = null;
@@ -330,7 +495,10 @@
 
         const adjectives = ["Mocha", "Espresso", "Hazelnut", "Creamy", "Toasty", "Roasted", "Chestnut", "Velvet", "Golden"];
         const nouns = ["Barista", "Otter", "Fox", "Panda", "Sloth", "Beaver", "Owl", "Falcon", "Koala"];
-        const myRandomName = adjectives[Math.floor(Math.random() * adjectives.length)] + " " + nouns[Math.floor(Math.random() * nouns.length)];
+        let myRandomName = adjectives[Math.floor(Math.random() * adjectives.length)] + " " + nouns[Math.floor(Math.random() * nouns.length)];
+
+        // Set initial label visualization
+        displayNameLabel.innerText = myRandomName;
 
         if ('pictureInPictureEnabled' in document) pipBtn.style.display = 'inline-flex';
 
@@ -405,6 +573,16 @@
                         }
                     }
                 }
+                if (data.type === 'name-update') {
+                    if (connectedPeersMap[conn.peer]) {
+                        connectedPeersMap[conn.peer].name = data.newName;
+                    }
+                    updateLobbyMemberName(conn.peer, data.newName);
+                    if (isHost) broadcastLobbyState();
+                }
+                if (data.type === 'chat-msg') {
+                    appendChatBubble(data.senderName, data.text);
+                }
                 if (data.type === 'lobby-update') syncLobbyList(data.list);
                 if (data.type === 'speaking-state') updateVoiceIndicator(data.peerId, data.isSpeaking);
             });
@@ -414,6 +592,87 @@
             delete connectedPeersMap[peerId];
             removeFromLobbyDisplay(peerId);
             if (isHost) broadcastLobbyState();
+        }
+
+        // Custom Username Change Event Controller Logic
+        editNameBtn.addEventListener('click', () => {
+            if (editNameBtn.innerText === "Edit") {
+                const currentVal = displayNameLabel.innerText.replace(" (You)", "");
+                profileArea.innerHTML = `
+                    <input type="text" id="name-edit-input" class="name-edit-input" value="${currentVal}" maxlength="18">
+                    <button id="save-name-btn" class="btn-edit-name" style="background:var(--success-color);color:#1c1412;">Save</button>
+                `;
+                const inputField = document.getElementById('name-edit-input');
+                const saveBtn = document.getElementById('save-name-btn');
+                
+                inputField.focus();
+                inputField.select();
+
+                const triggerSave = () => {
+                    const cleanName = inputField.value.trim();
+                    if(cleanName.length > 0) {
+                        myRandomName = cleanName;
+                    }
+                    // Re-render baseline profile label controls block
+                    profileArea.innerHTML = `
+                        <span id="display-name-label">${myRandomName} (You)</span>
+                        <button id="edit-name-btn" class="btn-edit-name">Edit</button>
+                    `;
+                    // Update global references instantly
+                    displayNameLabel.innerText = myRandomName + " (You)";
+                    updateLobbyMemberName(peer.id, myRandomName + " (You)");
+                    
+                    // Dispatch change notice notification array out to room peers
+                    Object.values(connectedPeersMap).forEach(p => {
+                        if (p.connection.open) p.connection.send({ type: 'name-update', newName: myRandomName });
+                    });
+                    if (!isHost) {
+                        // If viewer, notify host so they sync lobby records out downstream
+                        const hostPeer = Object.values(connectedPeersMap)[0];
+                        if (hostPeer && hostPeer.connection.open) {
+                            hostPeer.connection.send({ type: 'name-update', newName: myRandomName });
+                        }
+                    } else {
+                        broadcastLobbyState();
+                    }
+                    // Reconnect listener binds cleanly
+                    document.getElementById('edit-name-btn').addEventListener('click', () => editNameBtn.click());
+                };
+
+                saveBtn.onclick = triggerSave;
+                inputField.onkeydown = (e) => { if(e.key === 'Enter') triggerSave(); };
+            }
+        });
+
+        // Chat Message Shipping Handler Loop Configuration
+        function sendChatMessage() {
+            const rawText = chatInputField.value.trim();
+            if (rawText.length === 0) return;
+
+            // Render on local source node viewport directly first
+            appendChatBubble(myRandomName, rawText);
+            chatInputField.value = "";
+
+            // Push payload data downstream out across P2P architecture pipes
+            Object.values(connectedPeersMap).forEach(p => {
+                if (p.connection.open) {
+                    p.connection.send({ type: 'chat-msg', senderName: myRandomName, text: rawText });
+                }
+            });
+        }
+
+        chatSendBtn.onclick = sendChatMessage;
+        chatInputField.onkeydown = (e) => { if (e.key === 'Enter') sendChatMessage(); };
+
+        function appendChatBubble(sender, text) {
+            const bubble = document.createElement('div');
+            bubble.className = "chat-bubble";
+            bubble.innerHTML = `
+                <div class="chat-user-tag">${sender}</div>
+                <div>${text}</div>
+            `;
+            chatMessagesBox.appendChild(bubble);
+            chatMessagesBox.scrollTop = chatMessagesBox.scrollHeight;
         }
 
         micToggleBtn.addEventListener('click', async () => {
@@ -533,7 +792,6 @@
                         : { width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 60, max: 60 } };
                     
                     if (navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia) {
-                        // FIX: Explicitly request audio handling parameters in getDisplayMedia
                         localScreenStream = await navigator.mediaDevices.getDisplayMedia({
                             video: { ...vConstraints, displaySurface: "monitor" },
                             audio: {
@@ -544,7 +802,6 @@
                             }
                         });
 
-                        // UI Check: alert host if they forgot to toggle the "Share system audio" checkbox
                         if (localScreenStream.getAudioTracks().length === 0) {
                             statusText.innerText = "Notice: Desktop audio not checked in picker.";
                         } else {
@@ -637,6 +894,14 @@
             if (lobbyMembersList.some(m => m.id === id)) return;
             lobbyMembersList.push({ id, name: name + (local ? " (You)" : ""), isSpeaking: false });
             renderLobbyUI();
+        }
+
+        function updateLobbyMemberName(id, newName) {
+            const member = lobbyMembersList.find(m => m.id === id);
+            if (member) {
+                member.name = newName + (id === peer.id ? " (You)" : "");
+                renderLobbyUI();
+            }
         }
 
         function removeFromLobbyDisplay(id) {
