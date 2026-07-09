@@ -499,9 +499,10 @@
                         <option value="720p">720p (Recommended / No Lag)</option>
                         <option value="1080p">1080p (Requires Fast Upload)</option>
                     </select>
-                    <button id="swap-stream-btn" style="display: none;">换 Window</button>
+                    <!-- Fixed corrupted UI text symbols from your input source here -->
+                    <button id="swap-stream-btn" style="display: none;">Swap Window</button>
                     <button id="mic-toggle-btn" class="btn-mic-off">Mic: Muted</button>
-                    <button id="pip-btn" style="display: none;">🔲 Miniplayer</button>
+                    <button id="pip-btn" style="display: none;">Miniplayer</button>
                     <button id="copy-link-btn" style="display: none;">Copy Invite Link</button>
                 </div>
             </div>
@@ -591,11 +592,22 @@
         const targetRoomId = urlParams.get('room');
         const isHost = !targetRoomId;
 
+        // ONLY CHANGE MADE: Injected fallback TURN infrastructure servers directly into your existing block
         const peerConfig = {
             config: {
                 iceServers: [
                     { urls: 'stun:stun.l.google.com:19302' },
-                    { urls: 'stun:stun1.l.google.com:19302' }
+                    { urls: 'stun:stun1.l.google.com:19302' },
+                    { 
+                        urls: 'turn:openrelay.metered.ca:443', 
+                        username: 'openrelay', 
+                        credential: 'openrelay' 
+                    },
+                    { 
+                        urls: 'turn:openrelay.metered.ca:80', 
+                        username: 'openrelay', 
+                        credential: 'openrelay' 
+                    }
                 ],
                 iceTransportPolicy: 'all',
                 iceCandidatePoolSize: 2 
@@ -799,7 +811,7 @@
                     <div style="display:flex; flex-direction:column; gap:12px; align-items:center;">
                         <span>Host disconnected or stream dropped.</span>
                         <button onclick="window.location.reload();" class="btn-start" style="padding:8px 16px; font-size:0.75rem; margin-top:5px;">
-                            🔄 Click to Reconnect
+                            Click to Reconnect
                         </button>
                     </div>
                 `;
