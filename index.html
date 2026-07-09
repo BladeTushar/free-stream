@@ -4,9 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Free Stream Party - High Performance</title>
+    <!-- Importing JetBrains Mono Font -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    <!-- Minimal Tab Logo (Favicon) -->
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%23d4a373'/><path d='M30 35h40v25H30zM40 68h20M50 60v8' stroke='%231c1412' stroke-width='6' stroke-linecap='round' fill='none'/></svg>">
     <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
     <style>
@@ -1098,34 +1100,21 @@
                         : { width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 60, max: 60 } };
                     
                     if (navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia) {
-                        // 1. Capture the structural video interface layer safely
-                        const videoCaptureStream = await navigator.mediaDevices.getDisplayMedia({
+                        localScreenStream = await navigator.mediaDevices.getDisplayMedia({
                             video: { ...vConstraints, displaySurface: "monitor" },
-                            audio: false 
+                            audio: {
+                                echoCancellation: false,
+                                noiseSuppression: false,
+                                autoGainControl: false,
+                                suppressLocalAudioPlayback: false
+                            }
                         });
 
-                        // 2. WORKAROUND: Request a secondary mic gate pipeline to intercept system audio mixes
-                        let audioCaptureStream = null;
-                        try {
-                            audioCaptureStream = await navigator.mediaDevices.getUserMedia({
-                                audio: {
-                                    echoCancellation: false,
-                                    noiseSuppression: false,
-                                    autoGainControl: false
-                                }
-                            });
-                        } catch (audioErr) {
-                            console.warn("Audio bypass gate initialization skipped or closed:", audioErr);
+                        if (localScreenStream.getAudioTracks().length === 0) {
+                            statusText.innerText = "Notice: Desktop audio not checked in picker.";
+                        } else {
+                            statusText.innerText = "Lobby ready. Audio channel initialized.";
                         }
-
-                        // 3. MIXING MATRIX: Merge the video and audio paths together into one unified loop
-                        const unifiedTracksArray = [...videoCaptureStream.getVideoTracks()];
-                        if (audioCaptureStream) {
-                            unifiedTracksArray.push(...audioCaptureStream.getAudioTracks());
-                        }
-
-                        localScreenStream = new MediaStream(unifiedTracksArray);
-                        statusText.innerText = "Lobby ready. Dual-Stream Audio Mixer active.";
                     } 
                     else if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
                         statusText.innerText = "Mobile device: Launching camera feed...";
@@ -1173,7 +1162,7 @@
 
                 const newStream = await navigator.mediaDevices.getDisplayMedia({
                     video: { ...vConstraints, displaySurface: "monitor" },
-                    audio: false
+                    audio: { echoCancellation: false, noiseSuppression: false }
                 });
                 const newVideoTrack = newStream.getVideoTracks()[0];
                 remoteVideo.srcObject = newStream;
@@ -1184,12 +1173,7 @@
                 });
 
                 localScreenStream.getVideoTracks()[0].stop();
-                
-                // Retain old audio tracks if available during structural hot swaps
-                const currentAudioTracks = localScreenStream.getAudioTracks();
-                const combinedTracks = [newVideoTrack, ...currentAudioTracks];
-                
-                localScreenStream = new MediaStream(combinedTracks);
+                localScreenStream = newStream;
                 localScreenStream.getVideoTracks()[0].onended = () => handleStreamTerminationUI(true);
             } catch (err) { console.error(err); }
         });
@@ -1217,7 +1201,7 @@
                 streamToggleBtn.innerText = "Start Sharing";
                 streamToggleBtn.className = "btn-start";
                 swapStreamBtn.style.display = 'none';
-                fallbackStatusString.innerText = "Waiting for host to share screen..._";
+                fallbackStatusString.innerText = "Waiting for host to share screen...";
             } else {
                 fallbackStatusString.innerText = "Host has stopped streaming.";
             }
