@@ -4,9 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Free Stream Party - High Performance</title>
+    <!-- Importing JetBrains Mono Font -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    <!-- Minimal Tab Logo (Favicon) -->
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%23d4a373'/><path d='M30 35h40v25H30zM40 68h20M50 60v8' stroke='%231c1412' stroke-width='6' stroke-linecap='round' fill='none'/></svg>">
     <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
     <style>
@@ -599,6 +601,10 @@
         let typingTimeoutId = null;
         let isCurrentlyTypingState = false;
 
+        // FIXED: Throttling configurations for high-performance canvas math
+        let lastAmbientUpdateTime = 0;
+        const AMBIENT_THROTTLE_MS = 66; // Restricts ambient extraction to ~15 FPS to leave main UI thread completely fluid
+
         const adjectives = ["Mocha", "Espresso", "Hazelnut", "Creamy", "Toasty", "Roasted", "Chestnut", "Velvet", "Golden"];
         const nouns = ["Barista", "Otter", "Fox", "Panda", "Sloth", "Beaver", "Owl", "Falcon", "Koala"];
         let myRandomName = adjectives[Math.floor(Math.random() * adjectives.length)] + " " + nouns[Math.floor(Math.random() * nouns.length)];
@@ -628,13 +634,11 @@
             statusText.innerText = "Opening lounge room...";
             addToLobbyDisplay(peer.id, myRandomName);
             
-            // GARBAGE COLLECTOR ENGINE: Active routing table loop cleanup
             setInterval(() => {
                 let connectionAltered = false;
                 Object.keys(connectedPeersMap).forEach(peerId => {
                     const peerConnectionObj = connectedPeersMap[peerId].connection;
                     
-                    // FIXED: Audit network layers explicitly. If socket drops out or completely unmaps, prune it
                     if (!peerConnectionObj || !peerConnectionObj.open || 
                         (peerConnectionObj.peerConnection && 
                         (peerConnectionObj.peerConnection.connectionState === 'closed' || 
@@ -653,7 +657,6 @@
                     broadcastLobbyState();
                 }
 
-                // Dispatches keep-alive signaling packets to active loops
                 Object.values(connectedPeersMap).forEach(p => {
                     if (p.connection.open) p.connection.send({ type: 'ping-pulse' });
                 });
@@ -1080,20 +1083,31 @@
             });
         }
 
-        function initAmbientEngineLoop() {
+        // IMPROVED: High-Performance Throttled Rendering Loop
+        function initAmbientEngineLoop(timestamp) {
             if (remoteVideo.paused || remoteVideo.ended || remoteVideo.style.display === 'none') {
                 ambientCtx.clearRect(0, 0, ambientBackdropCanvas.width, ambientBackdropCanvas.height);
                 return;
             }
-            hiddenCtx.drawImage(remoteVideo, 0, 0, hiddenCanvas.width, hiddenCanvas.height);
-            ambientCtx.drawImage(hiddenCanvas, 0, 0, ambientBackdropCanvas.width, ambientBackdropCanvas.height);
+            
+            // Queue up the next request frame immediately
             ambientAnimationId = requestAnimationFrame(initAmbientEngineLoop);
+            
+            // Skips calculation frames if it hits inside our 66ms (15 FPS) limit
+            if (timestamp - lastAmbientUpdateTime < AMBIENT_THROTTLE_MS) return;
+            lastAmbientUpdateTime = timestamp;
+
+            // Execute low-resolution extraction
+            hiddenCtx.drawImage(remoteVideo, 0, 0, hiddenCanvas.width, hiddenCanvas.height);
+            ambientCtx.clearRect(0, 0, ambientBackdropCanvas.width, ambientBackdropCanvas.height);
+            ambientCtx.drawImage(hiddenCanvas, 0, 0, ambientBackdropCanvas.width, ambientBackdropCanvas.height);
         }
 
         remoteVideo.addEventListener('play', () => {
             ambientBackdropCanvas.width = remoteVideo.clientWidth / 4;
             ambientBackdropCanvas.height = remoteVideo.clientHeight / 4;
-            initAmbientEngineLoop();
+            // The requestAnimationFrame engine automatically passes the precise timeline high-res timestamp down
+            ambientAnimationId = requestAnimationFrame(initAmbientEngineLoop);
         });
         remoteVideo.addEventListener('pause', () => cancelAnimationFrame(ambientAnimationId));
         remoteVideo.addEventListener('ended', () => cancelAnimationFrame(ambientAnimationId));
@@ -1271,6 +1285,7 @@
             if (member) member.isSpeaking = isSpeaking;
         }
 
+        // FIXED: The user avatar initialization targets clean calculated indexes
         function renderLobbyUI() {
             viewerListContainer.innerHTML = "";
             partyCountSpan.innerText = lobbyMembersList.length;
