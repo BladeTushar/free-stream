@@ -152,21 +152,6 @@
             align-items: center;
         }
 
-        .ambient-glow-backdrop {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: transparent;
-            filter: blur(80px) opacity(0.55);
-            pointer-events: none;
-            z-index: 1;
-            transform: scale(1.05);
-            transition: opacity 0.5s cubic-bezier(0.4, 0, 0.2, 1);
-            border-radius: 18px;
-        }
-
         .video-container {
             width: 100%;
             aspect-ratio: 16/9;
@@ -470,7 +455,7 @@
             margin-top: 5px;
         }
 
-        #audio-container, #hidden-ambient-canvas { display: none; }
+        #audio-container { display: none; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
         @media (max-width: 900px) { .app-layout { grid-template-columns: 1fr; } .sidebar { height: 450px; } }
     </style>
@@ -495,8 +480,6 @@
                 </header>
 
                 <div class="video-wrapper-relative">
-                    <canvas id="ambient-glow-backdrop" class="ambient-glow-backdrop"></canvas>
-
                     <div class="video-container" id="video-box-container">
                         <div class="stream-placeholder-msg" id="stream-fallback-ui">
                             <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -551,7 +534,6 @@
     </div>
 
     <div id="audio-container"></div>
-    <canvas id="hidden-ambient-canvas" width="64" height="36"></canvas>
 
     <script>
         const streamToggleBtn = document.getElementById('stream-toggle-btn');
@@ -570,12 +552,6 @@
 
         const fallbackStatusString = document.getElementById('fallback-status-string');
         const streamFallbackUi = document.getElementById('stream-fallback-ui');
-
-        const ambientBackdropCanvas = document.getElementById('ambient-glow-backdrop');
-        const hiddenCanvas = document.getElementById('hidden-ambient-canvas');
-        const ambientCtx = ambientBackdropCanvas.getContext('2d');
-        const hiddenCtx = hiddenCanvas.getContext('2d');
-        let ambientAnimationId = null;
 
         const profileArea = document.getElementById('profile-area');
         const displayNameLabel = document.getElementById('display-name-label');
@@ -601,17 +577,15 @@
         let typingTimeoutId = null;
         let isCurrentlyTypingState = false;
 
-        // FIXED: Throttling configurations for high-performance canvas math
-        let lastAmbientUpdateTime = 0;
-        const AMBIENT_THROTTLE_MS = 66; // Restricts ambient extraction to ~15 FPS to leave main UI thread completely fluid
-
         const adjectives = ["Mocha", "Espresso", "Hazelnut", "Creamy", "Toasty", "Roasted", "Chestnut", "Velvet", "Golden"];
         const nouns = ["Barista", "Otter", "Fox", "Panda", "Sloth", "Beaver", "Owl", "Falcon", "Koala"];
         let myRandomName = adjectives[Math.floor(Math.random() * adjectives.length)] + " " + nouns[Math.floor(Math.random() * nouns.length)];
 
         displayNameLabel.innerText = myRandomName + " (You)";
 
-        if ('pictureInPictureEnabled' in document) pipBtn.style.display = 'inline-flex';
+        if ('pictureInPictureEnabled' in document) {
+            pipBtn.style.display = 'inline-flex';
+        }
 
         const urlParams = new URLSearchParams(window.location.search);
         const targetRoomId = urlParams.get('room');
@@ -842,6 +816,40 @@
                 Object.values(connectedPeersMap).forEach(p => {
                     if (p.connection.open) p.connection.send({ type: 'stream-stopped' });
                 });
+            }
+        });
+
+        pipBtn.addEventListener('click', async () => {
+            try {
+                if (!('pictureInPictureEnabled' in document)) {
+                    alert("Picture-in-Picture is unsupported on this browser.");
+                    return;
+                }
+
+                if (document.pictureInPictureElement) {
+                    await document.exitPictureInPicture();
+                    return;
+                }
+
+                let targetVideoElementSource = remoteVideo;
+
+                if (isHost) {
+                    if (!localScreenStream || !isStreaming) {
+                        alert("Start sharing your screen first before opening the miniplayer.");
+                        return;
+                    }
+                    targetVideoElementSource = remoteVideo;
+                } else {
+                    if (remoteVideo.style.display === 'none' || !remoteVideo.srcObject) {
+                        alert("No active incoming stream feed detected to launch.");
+                        return;
+                    }
+                }
+
+                await targetVideoElementSource.requestPictureInPicture();
+
+            } catch (err) {
+                console.error("Miniplayer Error Pipeline Exception: ", err);
             }
         });
 
@@ -1083,35 +1091,6 @@
             });
         }
 
-        // IMPROVED: High-Performance Throttled Rendering Loop
-        function initAmbientEngineLoop(timestamp) {
-            if (remoteVideo.paused || remoteVideo.ended || remoteVideo.style.display === 'none') {
-                ambientCtx.clearRect(0, 0, ambientBackdropCanvas.width, ambientBackdropCanvas.height);
-                return;
-            }
-            
-            // Queue up the next request frame immediately
-            ambientAnimationId = requestAnimationFrame(initAmbientEngineLoop);
-            
-            // Skips calculation frames if it hits inside our 66ms (15 FPS) limit
-            if (timestamp - lastAmbientUpdateTime < AMBIENT_THROTTLE_MS) return;
-            lastAmbientUpdateTime = timestamp;
-
-            // Execute low-resolution extraction
-            hiddenCtx.drawImage(remoteVideo, 0, 0, hiddenCanvas.width, hiddenCanvas.height);
-            ambientCtx.clearRect(0, 0, ambientBackdropCanvas.width, ambientBackdropCanvas.height);
-            ambientCtx.drawImage(hiddenCanvas, 0, 0, ambientBackdropCanvas.width, ambientBackdropCanvas.height);
-        }
-
-        remoteVideo.addEventListener('play', () => {
-            ambientBackdropCanvas.width = remoteVideo.clientWidth / 4;
-            ambientBackdropCanvas.height = remoteVideo.clientHeight / 4;
-            // The requestAnimationFrame engine automatically passes the precise timeline high-res timestamp down
-            ambientAnimationId = requestAnimationFrame(initAmbientEngineLoop);
-        });
-        remoteVideo.addEventListener('pause', () => cancelAnimationFrame(ambientAnimationId));
-        remoteVideo.addEventListener('ended', () => cancelAnimationFrame(ambientAnimationId));
-
         streamToggleBtn.addEventListener('click', async () => {
             if (!isStreaming) {
                 try {
@@ -1201,9 +1180,6 @@
 
         function handleStreamTerminationUI(isLocalHostAction = false) {
             if (document.pictureInPictureElement) document.exitPictureInPicture().catch(console.error);
-            
-            cancelAnimationFrame(ambientAnimationId);
-            ambientCtx.clearRect(0, 0, ambientBackdropCanvas.width, ambientBackdropCanvas.height);
 
             if (isLocalHostAction) {
                 Object.values(connectedPeersMap).forEach(p => {
@@ -1285,7 +1261,6 @@
             if (member) member.isSpeaking = isSpeaking;
         }
 
-        // FIXED: The user avatar initialization targets clean calculated indexes
         function renderLobbyUI() {
             viewerListContainer.innerHTML = "";
             partyCountSpan.innerText = lobbyMembersList.length;
