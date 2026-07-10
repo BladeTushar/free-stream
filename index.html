@@ -266,6 +266,19 @@
             max-width: 190px;
         }
 
+        .btn-edit-name {
+            padding: 5px 10px;
+            font-size: 0.7rem;
+            border-radius: 8px;
+        }
+
+        .name-edit-input {
+            width: 100%;
+            padding: 6px 12px !important;
+            font-size: 0.8rem !important;
+            border-radius: 10px !important;
+        }
+
         .sidebar h2 {
             margin: 0;
             font-size: 0.9rem;
@@ -315,6 +328,32 @@
             color: #1c1412;
         }
 
+        .voice-indicator {
+            display: flex;
+            align-items: flex-end;
+            gap: 3px;
+            width: 20px;
+            height: 15px;
+            opacity: 0.2;
+            transition: opacity 0.2s ease;
+        }
+
+        .voice-indicator.speaking {
+            opacity: 1;
+        }
+
+        .bar {
+            width: 3px;
+            height: 4px;
+            background-color: var(--success-color);
+            border-radius: 2px;
+            transition: height 0.1s ease;
+        }
+
+        .voice-indicator.speaking .bar:nth-child(1) { animation: bounce 0.6s ease-in-out infinite alternate; }
+        .voice-indicator.speaking .bar:nth-child(2) { animation: bounce 0.4s ease-in-out infinite alternate 0.1s; }
+        .voice-indicator.speaking .bar:nth-child(3) { animation: bounce 0.5s ease-in-out infinite alternate 0.2s; }
+
         .chat-container {
             display: flex;
             flex-direction: column;
@@ -359,6 +398,18 @@
             font-size: 0.7rem;
         }
 
+        .typing-status-indicator {
+            position: absolute;
+            bottom: 58px;
+            left: 4px;
+            font-size: 0.68rem;
+            color: var(--text-muted);
+            font-style: italic;
+            display: none;
+            animation: pulseFade 1.5s infinite alternate;
+            z-index: 5;
+        }
+
         .chat-input-row {
             display: flex;
             gap: 8px;
@@ -376,6 +427,9 @@
             padding: 10px 16px !important;
             border-radius: 12px !important;
         }
+
+        @keyframes bounce { from { height: 4px; } to { height: 15px; } }
+        @keyframes pulseFade { from { opacity: 0.5; } to { opacity: 1; } }
 
         .badge {
             position: absolute;
@@ -1021,7 +1075,7 @@
             });
         });
 
-        // SPECIAL ENCODER OVERRIDE: Smashes WebRTC bitrate probing to force permanent 1080p stream allocation
+        // SPECIAL ENCODER OVERRIDE: Smashes WebRTC bitrate probing to force fixed bandwidth allocations
         function forceHighBitrateSDPHack(sdpString, targetBitrateKbps) {
             const lines = sdpString.split('\r\n');
             let modifiedSDP = [];
@@ -1039,7 +1093,7 @@
                 if (videoSectionFound && (line.startsWith('a=rtpmap') || i === lines.length - 1 || lines[i+1].startsWith('m='))) {
                     modifiedSDP.push(`b=AS:${targetBitrateKbps}`);
                     modifiedSDP.push(`b=TIAS:${targetBitrateKbps * 1000}`);
-                    videoSectionFound = false; // Apply once per video stream channel
+                    videoSectionFound = false; 
                 }
             }
             return modifiedSDP.join('\r\n');
@@ -1048,11 +1102,11 @@
         function optimizeConnection(peerConnection) {
             if (!peerConnection) return;
 
-            // SDP Layer Hack: Force the browser connection to accept maximum bandwidth on initial handshake
+            // SDP Layer Hack: Force the browser connection to bypass probing and allocate immediate bandwidth
             const originalCreateOffer = peerConnection.createOffer;
             peerConnection.createOffer = async function(options) {
                 const offer = await originalCreateOffer.apply(this, arguments);
-                const targetCeiling = qualitySelect.value === '720p' ? 3000 : 6000; // Unlock 6000 Kbps pipeline
+                const targetCeiling = qualitySelect.value === '720p' ? 2200 : 3800; // Locked 3.8 Mbps clean sweet spot
                 offer.sdp = forceHighBitrateSDPHack(offer.sdp, targetCeiling);
                 return offer;
             };
@@ -1060,7 +1114,7 @@
             const originalCreateAnswer = peerConnection.createAnswer;
             peerConnection.createAnswer = async function(options) {
                 const answer = await originalCreateAnswer.apply(this, arguments);
-                const targetCeiling = qualitySelect.value === '720p' ? 3000 : 6000;
+                const targetCeiling = qualitySelect.value === '720p' ? 2200 : 3800;
                 answer.sdp = forceHighBitrateSDPHack(answer.sdp, targetCeiling);
                 return answer;
             };
@@ -1072,14 +1126,14 @@
                         const parameters = sender.getParameters();
                         if (!parameters.encodings) parameters.encodings = [{}];
                         
-                        // Enforce 'balanced' mode to eliminate aggressive stutter drops
+                        // OPTIMIZATION: Shift to 'balanced' mode to prevent freezing while maintaining detail boundaries
                         parameters.encodings[0].degradationPreference = 'balanced';
                         
                         const selectedQuality = qualitySelect.value;
                         if (selectedQuality === '720p') {
-                            parameters.encodings[0].maxBitrate = 3000000; 
+                            parameters.encodings[0].maxBitrate = 2200000; 
                         } else {
-                            parameters.encodings[0].maxBitrate = 6000000; // Allocate a solid 6.0 Mbps capacity target directly
+                            parameters.encodings[0].maxBitrate = 3800000; // Locked stable ceiling for high-action sharpness
                         }
                         
                         sender.setParameters(parameters).catch(console.error);
@@ -1107,7 +1161,7 @@
                             }
                         });
 
-                        // Force tracking layout to crisp profiles permanently
+                        // Force tracking layout to crisp detail profiles permanently
                         if (localScreenStream.getVideoTracks().length > 0) {
                             localScreenStream.getVideoTracks()[0].contentHint = 'detail';
                         }
@@ -1209,7 +1263,7 @@
                 streamToggleBtn.innerText = "Start Sharing";
                 streamToggleBtn.className = "btn-start";
                 swapStreamBtn.style.display = 'none';
-                fallbackStatusString.innerText = "Waiting for host to share screen..._";
+                fallbackStatusString.innerText = "Waiting for host to share screen...";
             } else {
                 fallbackStatusString.innerText = "Host has stopped streaming.";
             }
