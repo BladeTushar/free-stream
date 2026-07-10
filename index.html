@@ -266,19 +266,6 @@
             max-width: 190px;
         }
 
-        .btn-edit-name {
-            padding: 5px 10px;
-            font-size: 0.7rem;
-            border-radius: 8px;
-        }
-
-        .name-edit-input {
-            width: 100%;
-            padding: 6px 12px !important;
-            font-size: 0.8rem !important;
-            border-radius: 10px !important;
-        }
-
         .sidebar h2 {
             margin: 0;
             font-size: 0.9rem;
@@ -328,32 +315,6 @@
             color: #1c1412;
         }
 
-        .voice-indicator {
-            display: flex;
-            align-items: flex-end;
-            gap: 3px;
-            width: 20px;
-            height: 15px;
-            opacity: 0.2;
-            transition: opacity 0.2s ease;
-        }
-
-        .voice-indicator.speaking {
-            opacity: 1;
-        }
-
-        .bar {
-            width: 3px;
-            height: 4px;
-            background-color: var(--success-color);
-            border-radius: 2px;
-            transition: height 0.1s ease;
-        }
-
-        .voice-indicator.speaking .bar:nth-child(1) { animation: bounce 0.6s ease-in-out infinite alternate; }
-        .voice-indicator.speaking .bar:nth-child(2) { animation: bounce 0.4s ease-in-out infinite alternate 0.1s; }
-        .voice-indicator.speaking .bar:nth-child(3) { animation: bounce 0.5s ease-in-out infinite alternate 0.2s; }
-
         .chat-container {
             display: flex;
             flex-direction: column;
@@ -398,18 +359,6 @@
             font-size: 0.7rem;
         }
 
-        .typing-status-indicator {
-            position: absolute;
-            bottom: 58px;
-            left: 4px;
-            font-size: 0.68rem;
-            color: var(--text-muted);
-            font-style: italic;
-            display: none;
-            animation: pulseFade 1.5s infinite alternate;
-            z-index: 5;
-        }
-
         .chat-input-row {
             display: flex;
             gap: 8px;
@@ -427,9 +376,6 @@
             padding: 10px 16px !important;
             border-radius: 12px !important;
         }
-
-        @keyframes bounce { from { height: 4px; } to { height: 15px; } }
-        @keyframes pulseFade { from { opacity: 0.5; } to { opacity: 1; } }
 
         .badge {
             position: absolute;
@@ -1084,13 +1030,14 @@
                         const parameters = sender.getParameters();
                         if (!parameters.encodings) parameters.encodings = [{}];
                         
-                        parameters.encodings[0].degradationPreference = 'maintain-framerate';
+                        // OPTIMIZATION: Shift to 'balanced' mode to prevent freezing while maintaining detail boundaries
+                        parameters.encodings[0].degradationPreference = 'balanced';
                         
                         const selectedQuality = qualitySelect.value;
                         if (selectedQuality === '720p') {
-                            parameters.encodings[0].maxBitrate = 2200000; 
+                            parameters.encodings[0].maxBitrate = 2500000; // Locked stable ceiling for 720p motion
                         } else {
-                            parameters.encodings[0].maxBitrate = 4500000; 
+                            parameters.encodings[0].maxBitrate = 4500000; // Solid 4.5 Mbps ceiling for crystal clear 1080p cuts without choking
                         }
                         
                         sender.setParameters(parameters).catch(console.error);
@@ -1118,9 +1065,9 @@
                             }
                         });
 
-                        // OPTIMIZATION ADDED HERE: Force motion processing rules on screen track initialization
+                        // Keep track hint set to detail so text/HUD elements stay sharp natively
                         if (localScreenStream.getVideoTracks().length > 0) {
-                            localScreenStream.getVideoTracks()[0].contentHint = 'motion';
+                            localScreenStream.getVideoTracks()[0].contentHint = 'detail';
                         }
 
                         if (localScreenStream.getAudioTracks().length === 0) {
@@ -1140,9 +1087,8 @@
                             audio: false
                         });
 
-                        // OPTIMIZATION ADDED HERE: Prioritize framerate fluidity for webcam feeds as well
                         if (localScreenStream.getVideoTracks().length > 0) {
-                            localScreenStream.getVideoTracks()[0].contentHint = 'motion';
+                            localScreenStream.getVideoTracks()[0].contentHint = 'detail';
                         }
                     } else {
                         throw new Error("Streaming media options are unavailable on this device.");
@@ -1184,9 +1130,7 @@
                 });
                 const newVideoTrack = newStream.getVideoTracks()[0];
                 
-                // OPTIMIZATION ADDED HERE: Ensure track swapped layers inherit motion hints instantly
-                newVideoTrack.contentHint = 'motion';
-                
+                newVideoTrack.contentHint = 'detail';
                 remoteVideo.srcObject = newStream;
                 
                 activeCallsArray.forEach(call => {
