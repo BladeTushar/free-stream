@@ -4,11 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Free Stream Party - High Performance</title>
-    <!-- Importing JetBrains Mono Font -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-    <!-- Minimal Tab Logo (Favicon) -->
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%23d4a373'/><path d='M30 35h40v25H30zM40 68h20M50 60v8' stroke='%231c1412' stroke-width='6' stroke-linecap='round' fill='none'/></svg>">
     <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
     <style>
@@ -499,7 +497,6 @@
                         <option value="720p">720p (Recommended / No Lag)</option>
                         <option value="1080p">1080p (Requires Fast Upload)</option>
                     </select>
-                    <!-- Fixed corrupted UI text symbols from your input source here -->
                     <button id="swap-stream-btn" style="display: none;">Swap Window</button>
                     <button id="mic-toggle-btn" class="btn-mic-off">Mic: Muted</button>
                     <button id="pip-btn" style="display: none;">Miniplayer</button>
@@ -592,7 +589,6 @@
         const targetRoomId = urlParams.get('room');
         const isHost = !targetRoomId;
 
-        // ONLY CHANGE MADE: Injected fallback TURN infrastructure servers directly into your existing block
         const peerConfig = {
             config: {
                 iceServers: [
@@ -1122,6 +1118,11 @@
                             }
                         });
 
+                        // OPTIMIZATION ADDED HERE: Force motion processing rules on screen track initialization
+                        if (localScreenStream.getVideoTracks().length > 0) {
+                            localScreenStream.getVideoTracks()[0].contentHint = 'motion';
+                        }
+
                         if (localScreenStream.getAudioTracks().length === 0) {
                             statusText.innerText = "Notice: Desktop audio not checked in picker.";
                         } else {
@@ -1138,6 +1139,11 @@
                             },
                             audio: false
                         });
+
+                        // OPTIMIZATION ADDED HERE: Prioritize framerate fluidity for webcam feeds as well
+                        if (localScreenStream.getVideoTracks().length > 0) {
+                            localScreenStream.getVideoTracks()[0].contentHint = 'motion';
+                        }
                     } else {
                         throw new Error("Streaming media options are unavailable on this device.");
                     }
@@ -1177,6 +1183,10 @@
                     audio: { echoCancellation: false, noiseSuppression: false }
                 });
                 const newVideoTrack = newStream.getVideoTracks()[0];
+                
+                // OPTIMIZATION ADDED HERE: Ensure track swapped layers inherit motion hints instantly
+                newVideoTrack.contentHint = 'motion';
+                
                 remoteVideo.srcObject = newStream;
                 
                 activeCallsArray.forEach(call => {
