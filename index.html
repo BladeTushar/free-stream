@@ -1021,8 +1021,50 @@
             });
         });
 
+        // SPECIAL ENCODER OVERRIDE: Smashes WebRTC bitrate probing to force permanent 1080p stream allocation
+        function forceHighBitrateSDPHack(sdpString, targetBitrateKbps) {
+            const lines = sdpString.split('\r\n');
+            let modifiedSDP = [];
+            let videoSectionFound = false;
+
+            for (let i = 0; i < lines.length; i++) {
+                let line = lines[i];
+                modifiedSDP.push(line);
+
+                if (line.startsWith('m=video')) {
+                    videoSectionFound = true;
+                }
+
+                // Inject explicit application maximum transmission ceilings right inside the video transport headers
+                if (videoSectionFound && (line.startsWith('a=rtpmap') || i === lines.length - 1 || lines[i+1].startsWith('m='))) {
+                    modifiedSDP.push(`b=AS:${targetBitrateKbps}`);
+                    modifiedSDP.push(`b=TIAS:${targetBitrateKbps * 1000}`);
+                    videoSectionFound = false; // Apply once per video stream channel
+                }
+            }
+            return modifiedSDP.join('\r\n');
+        }
+
         function optimizeConnection(peerConnection) {
             if (!peerConnection) return;
+
+            // SDP Layer Hack: Force the browser connection to accept maximum bandwidth on initial handshake
+            const originalCreateOffer = peerConnection.createOffer;
+            peerConnection.createOffer = async function(options) {
+                const offer = await originalCreateOffer.apply(this, arguments);
+                const targetCeiling = qualitySelect.value === '720p' ? 3000 : 6000; // Unlock 6000 Kbps pipeline
+                offer.sdp = forceHighBitrateSDPHack(offer.sdp, targetCeiling);
+                return offer;
+            };
+
+            const originalCreateAnswer = peerConnection.createAnswer;
+            peerConnection.createAnswer = async function(options) {
+                const answer = await originalCreateAnswer.apply(this, arguments);
+                const targetCeiling = qualitySelect.value === '720p' ? 3000 : 6000;
+                answer.sdp = forceHighBitrateSDPHack(answer.sdp, targetCeiling);
+                return answer;
+            };
+
             peerConnection.addEventListener('track', () => {
                 const senders = peerConnection.getSenders();
                 senders.forEach(sender => {
@@ -1030,14 +1072,14 @@
                         const parameters = sender.getParameters();
                         if (!parameters.encodings) parameters.encodings = [{}];
                         
-                        // OPTIMIZATION: Shift to 'balanced' mode to prevent freezing while maintaining detail boundaries
+                        // Enforce 'balanced' mode to eliminate aggressive stutter drops
                         parameters.encodings[0].degradationPreference = 'balanced';
                         
                         const selectedQuality = qualitySelect.value;
                         if (selectedQuality === '720p') {
-                            parameters.encodings[0].maxBitrate = 2500000; // Locked stable ceiling for 720p motion
+                            parameters.encodings[0].maxBitrate = 3000000; 
                         } else {
-                            parameters.encodings[0].maxBitrate = 4500000; // Solid 4.5 Mbps ceiling for crystal clear 1080p cuts without choking
+                            parameters.encodings[0].maxBitrate = 6000000; // Allocate a solid 6.0 Mbps capacity target directly
                         }
                         
                         sender.setParameters(parameters).catch(console.error);
@@ -1065,7 +1107,7 @@
                             }
                         });
 
-                        // Keep track hint set to detail so text/HUD elements stay sharp natively
+                        // Force tracking layout to crisp profiles permanently
                         if (localScreenStream.getVideoTracks().length > 0) {
                             localScreenStream.getVideoTracks()[0].contentHint = 'detail';
                         }
@@ -1167,7 +1209,7 @@
                 streamToggleBtn.innerText = "Start Sharing";
                 streamToggleBtn.className = "btn-start";
                 swapStreamBtn.style.display = 'none';
-                fallbackStatusString.innerText = "Waiting for host to share screen...";
+                fallbackStatusString.innerText = "Waiting for host to share screen..._";
             } else {
                 fallbackStatusString.innerText = "Host has stopped streaming.";
             }
